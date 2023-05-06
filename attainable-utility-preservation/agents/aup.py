@@ -12,10 +12,10 @@ class AUPAgent():
                  use_scale=False):
         """
         :param attainable_Q: Q functions for the attainable set.
-        :param lambd: Scale harshness of penalty.
-        :param discount:
-        :param baseline: That with respect to which we calculate impact.
-        :param deviation: How to penalize shifts in attainable utility.
+        :param lambd: Scale harshness of penalty. "The designer's belief about the extent to which R might be misspecified."
+        :param discount: (Gamma from the paper). Penalty on future knowledge. (See secion 3.2)
+        :param baseline: That with respect to which we calculate impact. (See secion 3.2)
+        :param deviation: How to penalize shifts in attainable utility. (See secion 3.2)
         """
         self.attainable_Q = attainable_Q
         self.lambd = lambd
@@ -24,6 +24,7 @@ class AUPAgent():
         self.deviation = deviation
         self.use_scale = use_scale
 
+        # Agents name is based on the settings of 'baseline' und 'deviation'.
         if baseline != 'stepwise':
             self.name = baseline.capitalize()
             if baseline == 'start':
@@ -111,7 +112,7 @@ class AUPAgent():
             else:
                 scale = np.copy(null_attainable)
                 scale[scale == 0] = 1  # avoid division by zero
-                penalty = np.average(np.divide(abs(diff), scale))
+                penalty = np.average(np.divide(abs(diff), scale)) # TODO: Why divide here? Scaling should be turned off in this case.
 
             scaled_penalty = self.lambd * penalty
             self.restart(env, so_far + [action])

@@ -7,7 +7,7 @@ import numpy as np
 class ModelFreeAUPAgent:
     name = "Model-free AUP"
     pen_epsilon, AUP_epsilon = .2, .9  # chance of choosing greedy action in training
-    default = {'lambd': 1./1.501, 'discount': .996, 'rpenalties': 30, 'episodes': 6000}
+    default = {'lambd': 1./1.501, 'discount': .996, 'rpenalties': 30, 'episodes': 20} #6000} #TODO: CHANGED
 
     def __init__(self, env, lambd=default['lambd'], state_attainable=False, num_rewards=default['rpenalties'],
                  discount=default['discount'], episodes=default['episodes'], trials=50, use_scale=False):

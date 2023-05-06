@@ -1,0 +1,394 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% HEADER
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\documentclass[fontsize=12pt, paper=a4, headinclude, twoside=false, parskip=half+, pagesize=auto, numbers=noenddot, open=right, toc=listof, toc=bibliography]{scrreprt}
+%\documentclass[runningheads]{report}
+% PDF-Kompression
+\pdfminorversion=5
+\pdfobjcompresslevel=1
+\usepackage[automark]{scrpage2} % Kopf- und Fußzeilen
+\usepackage{setspace} % Zeilenabstand
+\onehalfspacing % 1,5 Zeilen
+\usepackage{scrhack} % Vermeidung einer Warnung
+
+%% Language / Text %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage[ngerman]{babel}
+\usepackage[T1]{fontenc}
+\usepackage[ansinew]{inputenc}
+\usepackage{lmodern} % Type1-font for non-english texts and characters
+\usepackage[T1]{fontenc} % Ligaturen, richtige Umlaute im PDF
+\usepackage{ulem}
+\usepackage{cancel}
+\usepackage{adjustbox} % To roate a table
+\usepackage[labelsep=endash]{caption}
+%\addto\captionsenglish{\renewcommand{\figurename}{Figure}}
+%\renewcommand{\figurename}{Figure}
+\usepackage[figurename=Figure]{caption}
+%\usepackage[utf8]{inputenc}% UTF8-Kodierung für Umlaute usw
+%Darstellung deutscher Sonderzeichen (Umlaute etc)
+% Schriften-Größen
+%\setkomafont{chapter}{\Huge\rmfamily} % Überschrift der Ebene
+%\setkomafont{section}{\Large\rmfamily}
+%\setkomafont{subsection}{\large\rmfamily}
+%\setkomafont{subsubsection}{\large\rmfamily}
+%\setkomafont{chapterentry}{\large\rmfamily} % Überschrift der Ebene in Inhaltsverzeichnis
+%\setkomafont{descriptionlabel}{\bfseries\rmfamily} % für description-Umgebungen
+%\setkomafont{captionlabel}{\small\bfseries}
+%\setkomafont{caption}{\small}
+\usepackage{chngcntr} % for \counterwithout{subsection}{section}
+\setlength\parindent{0pt}
+
+%% Math Symbols %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage{amsthm}
+\usepackage{amsfonts}
+\usepackage{amsmath,marvosym, amssymb, mathtools} % Mathesachen
+\usepackage{siunitx}%Schöne Darstellung großer Zahlen \num{}
+\usepackage{mathpazo} % Palatino für Mathemodus
+
+%% Other Packages %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage{color}                          % colors
+\usepackage{framed}                         % frames
+\usepackage{mdframed}                       % better frames
+\usepackage{float}
+
+%\usepackage{fancyhdr}                   % Fancy headings
+%\usepackage{mathpazo,tgpagella} % auch sehr schöne Schriften
+
+% PDF
+%\usepackage[ngerman,pdfauthor={Martin Bretschneider},  pdfauthor={Martin Bretschneider}, pdftitle={LaTeX-Vorlage für Bachelorarbeiten, Masterarbeiten und Dissertationen}, breaklinks=true,baseurl={http://www.bretschneidernet.de/tips/thesislatex.html}]{hyperref}
+\usepackage[final]{microtype} % mikrotypographische Optimierungen
+\usepackage{url} % ermögliche Links (URLs)
+\usepackage{pdflscape} % einzelne Seiten drehen können
+%\usepackage[svgnames, table, hyperref]{xcolor}
+%\usepackage{color}
+\usepackage{ bbold } % for mathbb{1}
+%\usepackage[margin=2cm]{geometry}
+\usepackage{amstext}
+\usepackage{bigints}
+%\usepackage{amscd}
+%\usepackage{amsthm}
+%\usepackage{amsbsy}
+%\usepackage{tikz-cd}
+%\usepackage{bm}
+\usepackage{cleveref}
+\usepackage[most]{tcolorbox}
+\usepackage{empheq}
+% Tabellen
+\usepackage{multirow} % Tabellen-Zellen über mehrere Zeilen
+\usepackage{multicol} % mehrere Spalten auf eine Seite
+\usepackage{tabularx, booktabs} % für Tabellen mit vorgegeben Größen
+\usepackage{longtable} % Tabellen über mehrere Seiten
+\usepackage{array}
+\usepackage{makecell} % for newline in cells \makecell{text\\text}
+
+%\renewcommand\theadalign{bc}
+%\renewcommand{\cellalign/theadalign}{vl}
+%\renewcommand\theadfont{\bfseries}
+%\renewcommand\theadgape{\Gape[4pt]}
+%\renewcommand\cellgape{\Gape[4pt]}
+
+%  Bibliographie
+\usepackage{bibgerm} % Umlaute in BibTeX
+% Bilder
+\usepackage{graphicx} % Bilder
+\usepackage{color} % Farben
+\usepackage{caption}
+\usepackage{subcaption}  % mehrere Abbildungen nebeneinander/übereinander
+%\usepackage[all]{hypcap} % Beim Klicken auf Links zum Bild und nicht zu Caption gehen
+% Bildunterschrift
+\setcapindent{0em} % kein Einrücken der Caption von Figures und Tabellen
+\setcapwidth{0.9\textwidth} % Breite der Caption nur 90% der Textbreite, damit sie sich vom restlichen Text abhebt
+\setlength{\abovecaptionskip}{0.2cm} % Abstand der zwischen Bild- und Bildunterschrift
+% F�r Pseudocode-Darstellungen
+\usepackage[ruled]{algorithm}
+\usepackage[noend]{algpseudocode} 
+\makeatletter
+\def\BState{\State\hskip-\ALG@thistlm}
+\algdef{SE}[DOWHILE]{Do}{doWhile}{\algorithmicdo}[1]{\algorithmicwhile\ #1}
+\makeatother
+% Quellcode
+% f�r Formatierung in Quelltexten, hier im Anhang
+\usepackage{listings}
+\usepackage{csquotes} % für Anführungszeichen/ Zitate
+\usepackage{enumerate}
+\usepackage{enumitem}
+%\usepackage[shortlabels]{enumerate}
+\definecolor{grau}{gray}{0.25}
+\lstset{
+	extendedchars=true,
+	basicstyle=\tiny\ttfamily,
+	%basicstyle=\footnotesize\ttfamily,
+	tabsize=2,
+	keywordstyle=\textbf,
+	%commentstyle=\color{grau},
+	stringstyle=\textit,
+	numbers=left,
+	numberstyle=\tiny,
+	% für schönen Zeilenumbruch
+	breakautoindent  = true,
+	breakindent      = 2em,
+	breaklines       = true,
+	postbreak        = ,
+	prebreak         = \raisebox{-.8ex}[0ex][0ex]{\Righttorque},
+}
+
+\definecolor{javared}{rgb}{0.6,0,0} % for strings
+\definecolor{javagreen}{rgb}{0.25,0.5,0.35} % for strings
+\definecolor{javapurple}{rgb}{0.5,0,0.35} % for strings
+\definecolor{javadocblue}{rgb}{0.25,0.35,0.75} % for strings
+\lstset{
+	language=Java,
+	basicstyle=\fontsize{8}{7}\ttfamily,
+	keywordstyle=\color{javapurple}\bfseries,
+	stringstyle=\color{javared},
+	commentstyle=\color{javagreen},
+	morecomment=[s][\color{javadocblue}]{/**}{*/}
+	numbers=left,
+	numberstyle=\tiny\color{black},
+	stepnumber=2,
+	numbersep=10pt,
+	tabsize=4,
+	showspaces=false,
+	showstringspaces=false
+%	{Ö}{{\"O}},	{Ä}{{\"A}},	{Ü}{{\"U}},	{ß}{{\ss}},	{ö}{{\"o}},	{ä}{{\"a}},	{ü}{{\"u}},
+}
+
+%\usepackage{exsheets} %http://www.ctan.org/pkg/exsheets 
+
+\newcommand{\IP}{\mathbb{P}} 
+\newcommand{\IN}{\mathbb{N}}
+\newcommand{\IR}{\mathbb{R}}
+\newcommand{\IZ}{\mathbb{Z}}
+\newcommand{\IQ}{\mathbb{Q}}
+\newcommand{\ID}{\mathbb{D}}
+\newcommand{\IC}{\mathbb{C}}
+\newcommand{\IE}{\mathbb{E}}
+\newcommand{\vF}{\mathcal{F}}
+\newcommand{\vA}{\mathcal{A}}
+\newcommand{\vD}{\mathcal{D}}
+\newcommand{\vB}{\mathcal{B}}
+\newcommand{\vP}{\mathcal{P}}
+\newcommand{\vJ}{\mathcal{J}}
+\newcommand{\vN}{\mathcal{N}}
+\newcommand{\vU}{\mathcal{U}}
+\newcommand{\Bin}{\mathop{\mathrm{Bin}}}
+\newcommand{\Poi}{\mathop{\mathrm{Poi}}}
+\newcommand{\Cov}{\mathop{\mathrm{Cov}}}
+\newcommand{\Var}{\mathop{\mathrm{Var}}}
+% linksbündige Fußboten
+\deffootnote{1.5em}{1em}{\makebox[1.5em][l]{\thefootnotemark}}
+
+\typearea{14} % typearea berechnet einen sinnvollen Satzspiegel (das heißt die Seitenränder usw.) siehe auch http://www.ctan.org/pkg/typearea. Diese Berechnung befindet sich am Schluss, damit die Einstellungen von oben berücksichtigt werden
+
+\newcommand{\norm}[1]{\left\lVert#1\right\rVert}
+\newcommand{\var}[1]{{\ttfamily#1}}% variable
+
+% Eigene Befehle %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
+% Matrix
+\newcommand{\mat}[1]{
+      {\textbf{#1}}
+}
+\newcommand{\todo}[1]{
+      {\colorbox{red}{ TODO: #1 }}
+}
+\newcommand{\todotext}[1]{
+      {\color{red} TODO: #1} \normalfont
+}
+\newcommand{\texttodo}[1]{
+	{\color{red} TODO: #1} \normalfont
+}
+%\newcommand{\info}[1]{
+%      {\colorbox{blue}{ (INFO: #1)}}
+%}
+% Hinweis auf Programme in Datei
+\newcommand{\datei}[1]{
+      {\ttfamily{#1}}
+}
+\newcommand{\code}[1]{
+      {\ttfamily{#1}}
+}
+% bild mit defnierter Breite einfügen
+\newcommand{\bild}[4]{
+  \begin{figure}[!hbt]
+    \centering
+      \vspace{1ex}
+      \includegraphics[width=#2]{images/#1}
+      \caption[#4]{\label{img.#1} #3}
+    \vspace{1ex}
+  \end{figure}
+}
+% bild mit eigener Breite
+\newcommand{\bilda}[3]{
+  \begin{figure}[!hbt]
+    \centering
+      \vspace{1ex}
+      \includegraphics{images/#1}
+      \caption[#3]{\label{img.#1} #2}
+      \vspace{1ex}
+  \end{figure}
+}
+
+% Bild todo
+\newcommand{\bildt}[2]{
+  \begin{figure}[!hbt]
+    \begin{center}
+      \vspace{2ex}
+	      \includegraphics[width=6cm]{images/todobild}
+      %\caption{\label{#1} \color{red}{ TODO: #2}}
+      \caption{\label{#1} \todotext{#2}}
+      %{\caption{\label{#1} {\todo{#2}}}}
+      \vspace{2ex}
+    \end{center}
+  \end{figure}
+}
+
+%\theoremstyle{definition}
+%\newtheorem{aufgabe}{Aufgabe}[section]
+
+%\theoremstyle{remark}
+%\newtheorem{hinweis}[aufgabe]{Hinweis}
+
+\newtcbtheorem[auto counter, number within = section]{myBox}{}{
+	breakable, %for usage on multiple pages
+	enhanced,	
+	attach boxed title to top left={
+		xshift=-1mm,
+		yshift=-5mm,
+		yshifttext=-1mm
+	},
+	top=1.5em,
+	colback=white,
+	colframe=black!75!black,
+	fonttitle=\bfseries,
+	boxed title style={
+		sharp corners,
+		size=small,
+		colback=black!75!black,
+		colframe=black!75!black,
+	} 
+}{myBox}
+
+
+%\newenvironment{Definition}[2]{ \begin{myBox}[adjusted title=DEF #1: #2, sharp corners]}{\end{myBox}}
+\newenvironment{Definition}[1]{ \begin{myBox}[adjusted title=DEF: #1, sharp corners]}{\end{myBox}}
+%\refstepcounter{section}\par\medskip\noindent
+%\newenvironment{Theorem}[1]{ \begin{myBox}[adjusted title=#1, sharp corners]}{\end{myBox}}
+
+
+
+% ROTATION COMMAND \rotraise{}
+\newcounter{idx}
+\newcounter{posx}
+\newcommand{\myqed}{\strut\hfill$\qed$\\}
+\newcommand{\rotraise}[1]{%
+	\StrLen{#1}[\slen]
+	\forloop[-1]{idx}{\slen}{\value{idx}>0}{%
+		\StrChar{#1}{\value{idx}}[\crtLetter]%
+		\IfSubStr{tlQWERTZUIOPLKJHGFDSAYXCVBNM}{\crtLetter}
+		{\raisebox{\depth}{\rotatebox{180}{\crtLetter}}}
+		{\raisebox{1ex}{\rotatebox{180}{\crtLetter}}}}%
+}
+
+
+
+
+
+%% Style Definitions %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\numberwithin{equation}{section}
+
+% My Theorem Style ============================================================
+
+\newtheoremstyle{myThmStyle}% name of the theorem
+{6pt}% habovespacei
+{6pt}% hbelowspacei
+{\itshape}% font
+{}% hindenti
+{}% hheadfonti
+{}% hheadpuncti
+{ }% hheadspacei
+{\thmname{\normalfont\large\textsc{#1 \thmnumber{#2}} \normalsize} - \thmnote{#3:}\\ %\\[1pt]\thmnumber{ \hfill \normalfont(#2)}\\[1pt]
+}
+
+% Frame Styles ================================================================
+
+\definecolor{thmBgColor}{RGB}{250,250,250}
+\definecolor{thmLnColor}{RGB}{200,200,200}
+
+\mdfdefinestyle{MDFStyGrayScreen}{%
+	linecolor=thmLnColor,
+	backgroundcolor=thmBgColor,
+	linewidth=1pt,
+	topline=true,
+	bottomline=true,
+	rightline=false,
+	leftline=false,
+	outerlinewidth=2pt,
+	roundcorner=0pt,
+	innertopmargin=4pt, %\baselineskip
+	innerbottommargin=4pt, %\baselineskip,
+	innerrightmargin=3pt,
+	innerleftmargin=3pt,
+	skipabove=\topskip,
+	skipbelow=\topskip,
+	nobreak=true
+}
+
+% Thorems =====================================================================
+
+\theoremstyle{myThmStyle}
+\newtheorem{myTheorem}{theorem}%[section]
+%\newtheorem{myTheorem}[equation]{theorem}
+
+% Equations environment ===========================================================
+\renewcommand\theequation{Eq.~\arabic{equation}}
+\newcommand{\taglabel}[1]{\tag{#1}\label{#1}}
+\newcommand{\taglabels}[2]{\tag{#1}\label{#2}}
+
+% Proof environment ===========================================================
+\renewenvironment{proof}{\paragraph{Proof:}}{\myqed}
+
+
+\newenvironment{myTheoremEnvEx}[1][\hsize]
+{% 
+	\def\FrameCommand 
+	{%
+		{\color{thmLnColor}\vrule width 8pt}%
+		\hspace{0pt}%must no space.
+		\fboxsep=5pt\colorbox{white}%
+	}%
+	\vspace{-\topskip}
+	\vspace{-\topskip}
+	\vspace{-1pt}
+	\MakeFramed{\hsize#1\advance\hsize-\width\noindent\FrameRestore}%
+}
+{\endMakeFramed}
+\setlength{\FrameSep}{0pt}
+
+% Theorem environment =========================================================
+
+\newenvironment{theorem}[1]
+{
+	\begin{mdframed}[style=MDFStyGrayScreen]
+		\begin{myTheorem}#1
+		}
+		{
+		\end{myTheorem}
+	\end{mdframed}
+}
+
+\newenvironment{changemargin}[2]{%
+	\begin{list}{}{%
+			\setlength{\topsep}{0pt}%
+			\setlength{\topmargin}{#1}%
+			\setlength{\bottommargin}{#2}%
+%			\setlength{\leftmargin}{#3}%
+%			\setlength{\rightmargin}{#4}%
+%			\setlength{\listparindent}{\parindent}%
+%			\setlength{\itemindent}{\parindent}%
+%			\setlength{\parsep}{\parskip}%
+		}%
+		\item[]}{\end{list}
+	}
+
+\graphicspath{{images/}} % Lege den Standardpfad mit Bilder fest
+\DeclareGraphicsExtensions{.pdf,.png,.jpg} % bevorzuge pdf-Dateien vor den anderen

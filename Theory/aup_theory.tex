@@ -1,0 +1,85 @@
+\input{Skript_praeambel.tex}
+
+%% !TeX spellcheck = en_GB 
+
+\begin{document}
+\title{AUP - Theory}
+\author{Fabrice Beaumont}
+\maketitle
+\tableofcontents
+
+\chapter{Unnamed}
+
+Consider environments as discounted Markov Decision Processes (MDPs) $(S, \mathcal{A}, r, p, \gamma)$:
+\begin{itemize}
+	\item $S$ - set of states\\
+	$s_t^\prime$ - baseline state at time $t$
+	\item $\mathcal{A}$ - set of actions\\
+	$a^{\text{noop}}\in \mathcal{A}$ - special no-operation action
+	\item $r: S\times \mathcal{A} \to \IR$ - reward function
+	\item $p: S\times S\times \mathcal{A} \to [0,1]$ - transition function
+	\item $\gamma \in (0,1)$ - discount factor (sometimes written as $\gamma_r$ - reachability discount factor w.r.t. reward function $r$)
+	\item $d: S\times \{ s_t^\prime \} \to \IR$ - deviation
+	\item $\beta\in \IR$ - \textbf{deviation penalty} (\textbf{learned parameter})
+\end{itemize}
+At time step $t$, the agent receives the current state $s_t$, outputs the action $a_t$ drawn from its policy $\pi(a_t| s_t)$ and receives reward $r(s_t, a_t)$.
+
+
+\begin{Definition}{Intrinsic pseudo-reward}{}{}
+	By adding a penalty for impacting the environment to the reward function we can implement an intrinsic pseudo-reward.
+	Therefore, we subtract at time $t$ an impact penalty, which is a scaled deviation penalty from the deviation of the current state from the baseline state $s_t^\prime$.
+	\[  r_\beta(s_t, a_t) := r(s_t, a_t) - \beta \; \cdot \; d(s_{t+1}, s_{t+1}^\prime ) \]
+\end{Definition}
+
+
+\begin{Definition}{Inaction rollout}{}{}
+	An \textbf{inaction rollout} from state $s_t$ is a sequence of states obtained by following the inaction policy ($a^{\text{noop}}$) starting from that state. Thus state $s_{t+2}^{(t)}$ denotes the state at time step $t+2$, after arriving at state $s_t$ at time step $t$ and performing the no-operation action for two time steps.
+	
+	This allows for an easy comparison to environment state after choosing the no-operation action at every time step starting from the baseline state: $s^{\prime(t)}_{t+2}$
+\end{Definition}
+
+\begin{Definition}{Reachability}{}{}
+	Let $\gamma_r \in (0,1]$. We define a \textbf{reachability} $R:S\times S\to[0,1]$ to get from state $x$ to state $y$ ($x\neq y$).\\
+	\texttodo{Kapitel 2.2. - erste Gleichung - Ist der Erwartungswert von der Potenz des reachability discount factors gemeint? Mit Ergebnis 1 falls $N_{\pi}(x,y)$ endlich und null sonst? Oder ist etwas anderes gemeint (value function).}\\
+	\texttodo{Vermutung: Es sollte $R(x,y) := \max_\pi \gamma_r^{N_{\pi}(x,y)} \IE[y]$. Begruengung: Siehe rekursive Formel: ist $\gamma_r$ mal Erwartungswert des naechsten States $z$ und erwarte $N_{\pi}(x,y)$ rekursive Aufrufe bis zum Ziel.}
+	
+	Its is defined as follows:
+	\begin{flalign*}
+		R(x,y) &:= \gamma_r \max\limits_{a} \sum_{z \in S} p(z| \; x,a) R(z,y)\\
+		&\stackrel{?}{=} \gamma_r^{n} \max\limits_{a_1} \sum_{z_1 \in S} p(z_1| \; x,a_1) \Big( \max\limits_{a_2} \sum_{z_2 \in S} p(z_2| \; z_1,a_2) \dots \max\limits_{a_{n}} \sum_{z_{n} \in S} (0+ p(y| \; z_{n},a_{n})*1)\Big)
+	\end{flalign*}
+	where $n=N_{\pi}(x,y)$. And it is $R(y,y)=1$.\\
+	
+	\textit{Special case}: \textbf{Undiscounted reachability} ($\gamma_r=1$), which computes whether $y$ is reachable in any number of steps. In this cased it is (see paper for proof):
+	\[ R(x,y) = \max_\pi \IP\big( N_{\pi}(x,y)<\infty \big) \]
+	\texttodo{Wie passt das zu: $R(x,y) := \max_\pi \IE \gamma_r^{N_{\pi}(x,y)} = \max_\pi \IE 1$?}\\
+	
+	The \textbf{unreachability} (UR) \textbf{deviation measure} $d_{\text{UR}}:S\times S\to[0,1]$ is then defined as:
+	\[ d_{\text{UR}}(x,y) := 1-R(x,y) \]
+	$d_{\text{UR}}(x,y)$ close to $1$ means low reachability, high unreachability.
+	
+	\textit{Note}: The undiscounted unreachability measure only penalizes irreversible transitions\footnote{$d_{\text{UR}}(x,y)=1$ if unreachable, $0$ else.}, while the
+	discounted measure also penalizes reversible transitions.
+\end{Definition}
+
+The unreachability deviation measure is often used to compute the unreachability to the baseline state $s^\prime_t$ from a state $s_t$: $d_{\text{UR}}(s_t,s^\prime_t)$.
+
+
+\begin{Definition}{Relative reachability}{}{}
+	The \textbf{relative reachability} (\textbf{RR}) measure $d_{\text{RR}}: S\times S\to [0,1]$ is the average reduction in reachability of all states $s$ from the current state $s_t$ compared to the baseline $s^\prime_t$:
+	
+	\[ d_{\text{RR}}(x,y) := \frac{1}{|S|} \sum_{s\in S} \max\big( R(s^\prime_t, s)-R(s_t,s),\; 0 \big) \]
+	
+\end{Definition}
+
+\begin{Definition}{Attainable utility}{}{}
+	The \textbf{attainable utility measure} $d_{\text{VD}}:S\times S\to \IR$ denotes the average gain in reward by obtaining a state $x$ compared to a state $y$. To define it, we define the \textbf{value} $V_r:S\to \IR$ of a state $x$ according to a reward function $r$. Therefore let $x_t^{\pi}$ denote the state obtained from $x$ by following policy $\pi$ for $t$ steps. It is
+	\[ V_r(x) := \max_\pi \sum_{t=0}^{\infty} \gamma_r^k \ r(x_t^{\pi}) \]
+	
+	\texttodo{Was ist $k$? $x$ is die reward function $r$? Die ist aber fuer States UND Aktionen definiert. Ist die Summe aller rewards fuer alle States und Aktionen gemaess $\pi$ gemeint?]} 
+	$r(x_t^{\pi}) = \sum_{t_1=0}^{\infty} r(x_{t_1}, a_{t_1})$ sodass $(x_{t_1}, a_{t_1})\in\pi$. 
+	\texttodo{Vermutung fuer $k$: Wie beim inaction rollout time step difference zum aktuellen time step. Frage: Sollte das values eines states nicht abhaengig vom time step des states sein?}
+\end{Definition}
+
+
+\end{document}

@@ -19,10 +19,15 @@ This set of tests will execute the demonstrations by constructing an instance
 of each of the environments and running the sequence of actions, checking
 return and safety performance.
 """
-
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+
+import sys
+import site
+# site.addsitedir('ai_safety_gridworlds')
+sys.path.append('ai_safety_gridworlds')
+print(sys.path)
 
 import numpy as np
 
