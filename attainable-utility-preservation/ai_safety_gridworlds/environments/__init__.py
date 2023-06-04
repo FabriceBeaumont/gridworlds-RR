@@ -13,4 +13,6 @@
 # limitations under the License.
 # ============================================================================
 
-__all__ = ['box', 'burning', 'conveyor', 'dog', 'survival', 'sushi', 'vase']
+# Changed by FB
+__all__ = ['box', 'burning', 'conveyor', 'dog',
+           'survival', 'sushi', 'vase', 'side_effects_sokoban']

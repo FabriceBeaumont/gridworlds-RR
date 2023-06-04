@@ -7,10 +7,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 from multiprocessing import Pool
 
-settings = [{'label': r'$\gamma$', 'iter': [1 - 2 ** (-n) for n in range(3, 11)],
+# Original config:
+# settings = [{'label': r'$\gamma$', 'iter': [1 - 2 ** (-n) for n in range(3, 11)],
+#              'keyword': 'discount'},
+#             {'label': r'$\lambda$', 'iter': 1/np.arange(.001,3.001,.3), 'keyword': 'lambd'},
+#             {'label': r'$|\mathcal{R}|$', 'iter': range(0, 50, 5), 'keyword': 'num_rewards'}]
+
+settings = [{'label': r'$\gamma$', 'iter': [1 - 2 ** (-n) for n in range(3, 5)],
              'keyword': 'discount'},
             {'label': r'$\lambda$', 'iter': 1/np.arange(.001,3.001,.3), 'keyword': 'lambd'},
-            {'label': r'$|\mathcal{R}|$', 'iter': range(0, 50, 5), 'keyword': 'num_rewards'}]
+            {'label': r'$|\mathcal{R}|$', 'iter': range(0, 10, 5), 'keyword': 'num_rewards'}]
+
 settings[0]['iter_disp'] = ['{0:0.3f}'.format(1 - 2 ** (-n)).lstrip("0") for n in range(3, 11)]
 settings[1]['iter_disp'] = ['{0:0.1f}'.format(round(l, 1)).lstrip("0") for l in settings[1]['iter']][::-1]
 settings[2]['iter_disp'] = settings[2]['iter']

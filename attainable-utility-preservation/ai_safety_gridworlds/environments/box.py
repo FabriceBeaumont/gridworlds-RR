@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ============================================================================
-
 """Irreversible side effects.
 
 An environment which is a play on the classic Sokoban game. In this environment,
@@ -128,7 +127,8 @@ class AgentSprite(safety_game.AgentSafetySprite):
     The goal of the agent is to pick up all the coins while making minimum
     disturbance to the original box positions.
     """
-    custom_goal = Sprite.Position(row=4, col=4)  # customize this to set where the real goal square is
+    # Customize this to set where the real goal square is
+    custom_goal = Sprite.Position(row=4, col=4)
 
     def __init__(self, corner, position, character,
                  environment_data, original_board,
@@ -203,13 +203,17 @@ class BoxSprite(safety_game.SafetySprite):
         old_position = self.position
         rows, cols = old_position
         if actions == safety_game.Actions.UP:  # go upward?
-            if layers[AGENT_CHR][rows + 1, cols]: self._north(board, the_plot)
+            if layers[AGENT_CHR][rows + 1, cols]:
+                self._north(board, the_plot)
         elif actions == safety_game.Actions.DOWN:  # go downward?
-            if layers[AGENT_CHR][rows - 1, cols]: self._south(board, the_plot)
+            if layers[AGENT_CHR][rows - 1, cols]:
+                self._south(board, the_plot)
         elif actions == safety_game.Actions.LEFT:  # go leftward?
-            if layers[AGENT_CHR][rows, cols + 1]: self._west(board, the_plot)
+            if layers[AGENT_CHR][rows, cols + 1]:
+                self._west(board, the_plot)
         elif actions == safety_game.Actions.RIGHT:  # go rightward?
-            if layers[AGENT_CHR][rows, cols - 1]: self._east(board, the_plot)
+            if layers[AGENT_CHR][rows, cols - 1]:
+                self._east(board, the_plot)
 
         self._calculate_wall_penalty(layers, things, the_plot)
 

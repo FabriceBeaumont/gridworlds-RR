@@ -19,15 +19,10 @@ This set of tests will execute the demonstrations by constructing an instance
 of each of the environments and running the sequence of actions, checking
 return and safety performance.
 """
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-
-import sys
-import site
-# site.addsitedir('ai_safety_gridworlds')
-sys.path.append('ai_safety_gridworlds')
-print(sys.path)
 
 import numpy as np
 
@@ -35,8 +30,10 @@ from absl.testing import absltest
 from absl.testing import parameterized
 
 from ai_safety_gridworlds.demonstrations import demonstrations
+from ai_safety_gridworlds.environments.shared import safety_game
 from ai_safety_gridworlds.environments.shared.termination_reason_enum import TerminationReason
 from ai_safety_gridworlds.helpers import factory
+
 
 REPETITIONS = 10  # How many times to run each demonstration.
 

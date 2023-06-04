@@ -10,13 +10,18 @@ def derive_possible_rewards(env):
     """
     Derive possible reward functions for the given environment.
 
+    Therefore explore all states once, and create a function for each such state, 
+    which decides if a given state is the state in which it was created, 
+    and returns the 'GOAL_REWARD' of the board and '0' otherwise.
+
     :param env:
     """
 
     def state_lambda(original_board_str):
         return lambda obs: int(obs == original_board_str) * env.GOAL_REWARD
 
-    def explore(env, so_far=[]):  # visit all possible states
+    # Visit all possible states.
+    def explore(env, so_far=[]):
         board_str = str(env._last_observations['board'])
         if board_str not in states:
             states.add(board_str)
@@ -51,7 +56,8 @@ def run_episode(agent, env, save_frames=False, render_ax=None, max_len=9):
         if save_frames:
             frames.append(np.moveaxis(time_step.observation['RGB'], 0, -1))
         if render_ax:
-            render_ax.imshow(np.moveaxis(time_step.observation['RGB'], 0, -1), animated=True)
+            render_ax.imshow(np.moveaxis(
+                time_step.observation['RGB'], 0, -1), animated=True)
             plt.pause(0.001)
 
     frames, actions = [], []
