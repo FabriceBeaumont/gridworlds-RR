@@ -1,0 +1,60 @@
+
+####################################################
+### Environment Helper: ############################
+####################################################
+- Compute all states (run over all states & actions). Save them in a vector for further computations.
+
+
+####################################################
+### Variables: #####################################
+####################################################
+N:		timesteps until forced termination (may depends on env?)
+xBaselines:	bl_S, bl_I, bl_SI
+xDeviation m.:	d_RR
+Discount gamma:	0.996					(Gird search)
+Positivity f:	max(x, 0) or |x|			implemented via use_scale
+Beta:		scaling of the intrinsic pseudo-reward	(Gird search= 0.1, 0.3, 1, 3, 10, 30, 100, 300
+
+?? k\Rollout size: N-t
+
+
+####################################################
+### PreComputations: ###############################
+####################################################
+- Baseline bl_S (given - save it)
+- Baseline bl_I: for all N steps
+- Coverage measure: Reachability of all states, to all states R(x,y) (dict), R(y,y) = 1
+
+
+####################################################
+### Functions: #####################################
+####################################################
+- Deviation measure: Relavtive reachabiliy: d_RR 	(require Coverage measure R)
+- Reward (s_t, a_t): 
+	env_reward - beta * d_RR(s_t, s'_t)
+	
+	env_reward - beta * d_RR(s_N, s'_N) 		(to include the rollout?)
+		s_N  = s_t  * (N-t-1)*a_noop
+		s'_N = s_'t * (N-t-1)*a_noop
+
+
+####################################################
+### Q-learning algorithm: ##########################
+####################################################
+
+# Girdsearch parameter update.
+for episode in range(num_episodes):			# num_episodes = 9000 (paper)
+    # Initialize new episode params.
+    env.restart()
+
+    for step in range(N):
+        # Exploration-exploitation trade-off (random action)
+        # Take new action
+        # Compute the reward: state_reward - beta * d_RR(s_t, s'_t)	?? Where to put the reward ??
+        # Update Q-table: q = Bellman(reward)
+        # Set new state
+
+    # Exploration rate decay   
+    # Add current episode reward to total rewards list
+    # Save runtime stats & results.
+
