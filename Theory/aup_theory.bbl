@@ -1,0 +1,25 @@
+\begin{thebibliography}{1}
+
+\bibitem{2018_Krakovna_penaslizing}
+Victoria Krakovna, Laurent Orseau, Ramana Kumar, Miljan Martic, and Shane Legg.
+\newblock Penalizing side effects using stepwise relative reachability.
+\newblock {\em arXiv preprint arXiv:1806.01186}, 2018.
+
+\bibitem{2018_Krakovna_measuring}
+Victoria Krakovna, Laurent Orseau, Miljan Martic, and Shane Legg.
+\newblock Measuring and avoiding side effects using relative reachability.
+\newblock {\em arXiv preprint arXiv:1806.01186}, 2018.
+
+\bibitem{2020_Turner_avoiding}
+Alex Turner, Neale Ratzlaff, and Prasad Tadepalli.
+\newblock Avoiding side effects in complex environments.
+\newblock {\em Advances in Neural Information Processing Systems},
+  33:21406--21415, 2020.
+
+\bibitem{2020_Turner_conservative}
+Alexander~Matt Turner, Dylan Hadfield-Menell, and Prasad Tadepalli.
+\newblock Conservative agency via attainable utility preservation.
+\newblock In {\em Proceedings of the AAAI/ACM Conference on AI, Ethics, and
+  Society}, pages 385--391, 2020.
+
+\end{thebibliography}

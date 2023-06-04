@@ -8,7 +8,58 @@
 \maketitle
 \tableofcontents
 
-\chapter{Unnamed}
+Included papers:
+\begin{itemize}
+	\item \cite{2018_Krakovna_penaslizing}
+	\item 	
+\end{itemize}
+
+Papers to include:
+\begin{itemize}
+	\item \cite{2018_Krakovna_measuring}
+	\item \cite{2020_Turner_avoiding}
+	\item \cite{2020_Turner_conservative}
+\end{itemize}
+
+\chapter{Notation}
+
+\begin{itemize}
+	\item Arbitrary states $x$, $y$\\
+	states at time step $t$: $s_t$
+	\item Baseline state $s^\prime_t$\\
+	Starting state baseline $s_0$, inaction baseline $s_t^{(0)}$, stepwise inaction baseline $s_t^{(t-1)}$
+	\item Noop-action $a^{\text{noop}}$	
+	\item $s_{m}^{(t)}$ - inaction rollout: State $t$ after $m-t$ no-operation actions ($m=t+k>t$). That is perform only no-operation actions after time-step $t$.
+\end{itemize}
+
+\chapter{Key notes}
+
+\begin{itemize}
+	\item $\Sigma$ - Set of states
+	\item $A$ - Set of actions
+\end{itemize}
+
+\paragraph{Important definitions}:
+\begin{itemize}
+	\item $C(\tilde{s}, s) \in [0,1]$ - how easily can we obtain $s$ form $\tilde{s}$ (\textbf{coverage}, \textbf{reachability})
+	\item Coverage matrix: $R=C\in \IR^{|\Sigma|\times|\Sigma|}$.\\
+	(Written as $C$ or $R$ (if implemented as reachability).)
+	\item $Q \in [0,1]^{|\Sigma|\times |A|}$ - \textbf{Q-table}\\
+	$q_{s,a}$ - if in state $s$, how rewarding is it to perform action $a$
+	\item $D \in \IR^{|\Sigma|} = \begin{pmatrix}
+		d(S_t, S')
+	\end{pmatrix}$ - deviation of state $S_t$ compared to the some baseline state $S'$
+\end{itemize} 
+
+\paragraph{Paper differences}: Updates of the \cite{2018_Krakovna_penaslizing} paper, compared to the old \cite{2018_Krakovna_measuring} paper:
+\begin{itemize}
+	\item Write $R$ instead of $C$
+	\item Introduction of the \textbf{stepwise inaction baseline}
+	\item Introduction of the scaling parameter beta $\beta$
+	\item Scaling the computation of the $d_{\text{RR}}$ by the number of states
+\end{itemize}
+
+\chapter{Paper summaries}
 
 Consider environments as discounted Markov Decision Processes (MDPs) $(S, \mathcal{A}, r, p, \gamma)$:
 \begin{itemize}
@@ -24,9 +75,51 @@ Consider environments as discounted Markov Decision Processes (MDPs) $(S, \mathc
 \end{itemize}
 At time step $t$, the agent receives the current state $s_t$, outputs the action $a_t$ drawn from its policy $\pi(a_t| s_t)$ and receives reward $r(s_t, a_t)$.
 
+%TODO How to do text equations with linebreak
+\begin{Definition}{Desirable properties of XZ}{}{} %TODO
+	\begin{equation}\label{eq:Property1} \tag{Property 1}
+		\text{Penalize the agent for effects on the environment if and only if those effects are unnecessary for achieving the objective.~\cite{2018_Krakovna_measuring}}
+	\end{equation}
+	
+	\begin{equation}\label{eq:Property2} \tag{Property 2}
+		\text{Distinguish between agent effects and environment events, and only penalize the agent for the former but not the latter.~\cite{2018_Krakovna_measuring}}
+	\end{equation}
+	
+	\textbf{Sensitivity to the reversible-ness of the agent's effects}:
+	\begin{equation}\label{eq:Property3} \tag{Property 3}
+		\text{Give a higher penalty for irreversible effects than for reversible effects.~\cite{2018_Krakovna_measuring}}
+	\end{equation}
+	
+	\textbf{Sensitivity to the magnitude of the agent’s irreversible effects}:
+	\begin{equation}\label{eq:Property4} \tag{Property 4}
+		\text{(Cumulative penalty) The penalty should accumulate when more irreversible effects occur.~\cite{2018_Krakovna_measuring}}		
+	\end{equation}
+	For example, if the agent starts in state $S_0$, takes an irreversible action that leads to state $S_1$, and then takes another irreversible action that leads to state $S_2$, then $d(S_2; S_0) > d(S_1;S_0)$.
+\end{Definition}
+
+\begin{Definition}{Baselines}{}{}
+	We define different baselines in order to compare the actions of an agent at any state with these baselines.
+	
+	\textbf{Starting state}: Use the state of the environment at $t=0$.
+	
+	\textbf{Inaction baseline}: Simulate the environment as if the agent never spawned. (That is it performs the $a^{\text{noop}}$ at every time-step.)
+	
+	\textbf{Stepwise-inaction baseline}: Simulate the environment as if the agent has done noting, instead of the last chosen action.
+	
+	
+	It may be useful to not (just) compare the current state and   baseline state of the current time-step \textbf{inaction-rollout}.
+\end{Definition}
+
+%					0	1	2	3	4	5	6	7	8	9	10	
+%starting state bl	*				
+%inaction baseline	-	-	-	-	-	-	-	-	-	-	-
+%sw inaction bl		a1	a2	a3	a4	a5	- 	-	-	-	-	-
+%agents actions		a1	a2	a3	a4	a5	a6  -	-	-	-	-
+%
+%State $t=5$, inaction rollout until state 10 ($k=5$).
 
 \begin{Definition}{Intrinsic pseudo-reward}{}{}
-	By adding a penalty for impacting the environment to the reward function we can implement an intrinsic pseudo-reward.
+	By adding a \textbf{penalty for side effects}\footnote{Side effects are impacts to the environment, which are not necessary to complete the main task} to the reward function we can implement an intrinsic pseudo-reward.
 	Therefore, we subtract at time $t$ an impact penalty, which is a scaled deviation penalty from the deviation of the current state from the baseline state $s_t^\prime$.
 	\[  r_\beta(s_t, a_t) := r(s_t, a_t) - \beta \; \cdot \; d(s_{t+1}, s_{t+1}^\prime ) \]
 \end{Definition}
@@ -38,12 +131,25 @@ At time step $t$, the agent receives the current state $s_t$, outputs the action
 	This allows for an easy comparison to environment state after choosing the no-operation action at every time step starting from the baseline state: $s^{\prime(t)}_{t+2}$
 \end{Definition}
 
-\begin{Definition}{Reachability}{}{}
-	Let $\gamma_r \in (0,1]$. We define a \textbf{reachability} $R:S\times S\to[0,1]$ to get from state $x$ to state $y$ ($x\neq y$).\\
-	\texttodo{Kapitel 2.2. - erste Gleichung - Ist der Erwartungswert von der Potenz des reachability discount factors gemeint? Mit Ergebnis 1 falls $N_{\pi}(x,y)$ endlich und null sonst? Oder ist etwas anderes gemeint (value function).}\\
-	\texttodo{Vermutung: Es sollte $R(x,y) := \max_\pi \gamma_r^{N_{\pi}(x,y)} \IE[y]$. Begruengung: Siehe rekursive Formel: ist $\gamma_r$ mal Erwartungswert des naechsten States $z$ und erwarte $N_{\pi}(x,y)$ rekursive Aufrufe bis zum Ziel.}
+
+\begin{Definition}{Deviation measure}{}{}
+	\dots
 	
-	Its is defined as follows:
+	is called \textbf{symmetric}, if \dots
+\end{Definition}
+Using a symmetric deviation measure implies, that all actions are reversible.
+
+We define an asymmetric deviation measure called \textbf{reachability}.
+
+
+\begin{Definition}{Reachability}{}{}
+	We define a \textbf{reachability} $R:S\times S\to[0,1]$ as a measure of difficulty to get from state $x$ to state $y$ ($x\neq y$).
+	We use the parameter $\gamma_r\in(0,1]$ to define the importance of time. For low $\gamma$, it is expensive to need more time-steps. For high $\gamma$, it is cheaper to need more time-steps. The special case $\gamma=1$, where times does not matter is discussed below.
+	
+	\[ R(x,y) := \max_\pi \gamma^{N_{\pi}(x, y)} \qquad \Big(= \max_\pi \IE\big[ \gamma^{N_{\pi}(x, y)]} \big] \Big)\]
+	(Use the $\IE$ notation only for the proof of the statement below for undiscounted reachability.)
+	
+	A recursive computation can be done like this:
 	\begin{flalign*}
 		R(x,y) &:= \gamma_r \max\limits_{a} \sum_{z \in S} p(z| \; x,a) R(z,y)\\
 		&\stackrel{?}{=} \gamma_r^{n} \max\limits_{a_1} \sum_{z_1 \in S} p(z_1| \; x,a_1) \Big( \max\limits_{a_2} \sum_{z_2 \in S} p(z_2| \; z_1,a_2) \dots \max\limits_{a_{n}} \sum_{z_{n} \in S} (0+ p(y| \; z_{n},a_{n})*1)\Big)
@@ -51,8 +157,10 @@ At time step $t$, the agent receives the current state $s_t$, outputs the action
 	where $n=N_{\pi}(x,y)$. And it is $R(y,y)=1$.\\
 	
 	\textit{Special case}: \textbf{Undiscounted reachability} ($\gamma_r=1$), which computes whether $y$ is reachable in any number of steps. In this cased it is (see paper for proof):
-	\[ R(x,y) = \max_\pi \IP\big( N_{\pi}(x,y)<\infty \big) \]
-	\texttodo{Wie passt das zu: $R(x,y) := \max_\pi \IE \gamma_r^{N_{\pi}(x,y)} = \max_\pi \IE 1$?}\\
+	\[ R(x,y) = \max_\pi \IP\big( N_{\pi}(x,y)<\infty \big)  = \begin{cases}
+		1 \ y \text{ is reachable from }x\\
+		0 \ \text{otherwise}
+	\end{cases}\]	
 	
 	The \textbf{unreachability} (UR) \textbf{deviation measure} $d_{\text{UR}}:S\times S\to[0,1]$ is then defined as:
 	\[ d_{\text{UR}}(x,y) := 1-R(x,y) \]
@@ -82,4 +190,13 @@ The unreachability deviation measure is often used to compute the unreachability
 \end{Definition}
 
 
+\newpage
+%%%% ----------------------- %%%%
+%%%% ------Bibliography----- %%%%
+%%%% ----------------------- %%%%
+\bibliographystyle{plain}
+\bibliography{./bibliography}
+
 \end{document}
+
+
