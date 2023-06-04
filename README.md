@@ -19,21 +19,23 @@ Used papers for inspiration and understanding:
 - [Avoiding side effects in complex environments](https://proceedings.neurips.cc/paper/2020/hash/f50a6c02a3fc5a3a5d4d9391f05f3efc-Abstract.html) [[3]](#3)
 - [Conservative agency via attainable utility preservation](https://dl.acm.org/doi/abs/10.1145/3375627.3375851?casa_token=TOj2-yjPZYEAAAAA:4BKWRa1IBaYiDlTDq_ykSQ48wH0sMMHfzWd_3nN4EF7fqKF9iS7XYAXVkJV_WIpWtoC9wpRiFy4lHw) [[4]](#4)
 
-[[1]](#1).
 
 ## References
 <a id="1">[1]</a> 
 Krakovna, V., Orseau, L., Kumar, R., Martic, M. and Legg, S., 2018.
 Penalizing side effects using stepwise relative reachability. 
 arXiv preprint arXiv:1806.01186.
+
 <a id="2">[2]</a> 
 Krakovna, V., Orseau, L., Martic, M. and Legg, S., 2018.
 Measuring and avoiding side effects using relative reachability.
 arXiv preprint arXiv:1806.01186.
+
 <a id="3">[3]</a> 
 Turner, A., Ratzlaff, N. and Tadepalli, P., 2020.
 Avoiding side effects in complex environments. 
 Advances in Neural Information Processing Systems, 33, pp.21406-21415.
+
 <a id="4">[4]</a> 
 Turner, A.M., Hadfield-Menell, D. and Tadepalli, P., 2020, February.
 Conservative agency via attainable utility preservation.
