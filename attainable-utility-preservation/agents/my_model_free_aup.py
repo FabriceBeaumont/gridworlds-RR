@@ -67,7 +67,7 @@ class ModelFreeAUPAgent:
 
         :param env:         Simulator.
         :param beta:        Impact tuning parameter/ Scaling of the intrinsic pseudo-reward. (float)
-        :param discount:    'gamma' in the papers. (float)
+        :param discount:    'gamma' in the papers. Inverted cost of time steps (context of coverage function). (float)
         :param episodes:    Number of episodes. (int)
         :param trials:      Number of trials. (int)
         :param use_scale:   True - scale the penalty. False - scale only to non-zero. (bool)

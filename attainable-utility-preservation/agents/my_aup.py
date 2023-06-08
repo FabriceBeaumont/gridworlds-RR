@@ -60,17 +60,18 @@ class AUPAgent():
         """
         if self.baseline == Baselines.STARTING:
             # For the starting state baseline take the state of the board right now (recall that so far no actions have been made / no time has passed.)
-            bl_state = self.coverage[str(
-                env.last_observations['board'])].max(axis=1)
+            bl_state = str(env.last_observations['board'])
+            bl_state_coverage = self.coverage[bl_state].max(axis=1)
         elif self.baseline == Baselines.INACTION:
             # For the inaction baseline, simulate the environment for the necessary time steps while
             # taking the noop action each time.
             self.restart(env, [safety_game.Actions.NOTHING] * steps_left)
-            bl_state = self.coverage[str(
-                env.last_observations['board'])].max(axis=1)
+            bl_state = str(env.last_observations['board'])
+            bl_state_coverage = self.coverage[].max(axis=1)
             env.reset()
 
         self.baseline_state = bl_state
+        self.baseline_state_coverage = bl_state_coverage
 
     def compute_baseline_coverage(self, env, so_far, steps_left)
        if self.baseline == Baselines.STARTING or self.baseline == Baselines.INACTION:
@@ -83,14 +84,16 @@ class AUPAgent():
 
             # Simulate the environment, when taking the inaction plan.
             self.restart(env, inaction_plan)
-            state = str(env._last_observations['board'])
+            baseline_state = str(env._last_observations['board'])
 
-            return self.coverage[state][:, safety_game.Actions.NOTHING]  # TODO: why not use 'max(axis=1)' here again?
+            self.baseline_state_coverage = self.coverage[baseline_state][:, safety_game.Actions.NOTHING]  # TODO: why not use 'max(axis=1)' here again?
 
         if self.baseline == Baselines.STEPWISE_ROLLOUT:
             # TODO: Add code for the stepwise rollout baseline here.
             # TODO: d_{SUR} / Section Modifications required with the stepwise inaction baseline / page 8
-            return 0
+            pass
+
+        return self.baseline_state_coverage
 
     def get_actions(self, env, steps_left, so_far=[]):
         """Figure out the n-step optimal plan, returning it and its return.
@@ -105,7 +108,7 @@ class AUPAgent():
         # If no action has been taken so far, compute the baseline state.
         # Note that depending on the baseline definition, the baseline state will be overwritten later on.
         if len(so_far) == 0:
-            self.baseline_state = self.init_baseline_state(env, steps_left)
+            self.init_baseline_state(env, steps_left)
 
         # Hash the current state and the steps left. This hash will be used to store the best action for this state and time.
         current_hash = (str(env.last_observations['board']), steps_left)
@@ -173,28 +176,27 @@ class AUPAgent():
             # Simulate the environment, when taking the action plan.
             self.restart(env, action_plan)
             state = str(env._last_observations['board'])
+            # Save the coverage of the current state (when taking the action).
+            # That is how easily all other states are reachable from the current state.
+
+            # action_coverage \in S
+            # [action_coverage]_i = how easily is state i reachable from the current state. 
+            # (Measured by taking the action corresponding to the column of maximum value.)
+            # Thus return the maximum value for each row.
+            # '[R(s_t; s)]_{s \in S}' in the papers
             action_coverage = self.coverage[state].max(axis=1)
 
+            # '[R(s_0; s)]_{s \in S}' in the papers
             baseline_coverage = self.compute_baseline_coverage(env, so_far, steps_left)
 
             diff = baseline_coverage - action_coverage
-            
-            if self.deviation == Deviations.DECREASE:
-                # Do not penalize increases, thus use 'max(diff, 0)'.
-                diff[diff > 0] = 0  
-
-            # Scaling number or vector (per-AU)
-            if self.use_scale:
-                scale = sum(abs(baseline_coverage))
-                if scale == 0:
-                    scale = 1
-                penalty = sum(abs(diff) / scale)
-            else:
-                scale = np.copy(baseline_coverage)
-                # Avoid division by zero.
-                scale[scale == 0] = 1  
-                penalty = np.average(np.divide(abs(diff), scale))
-
+                        
+            # Do not penalize increases, thus use 'max(diff, 0)'.
+            diff[diff > 0] = 0  
+            # Define the penalty as the average reduction in reachability of all states from the current state, 
+            # compared to the baseline state.
+            penalty = np.average(diff)    
+                    
             # Scale the penalty using the impact tuning parameter 'beta'.
             scaled_penalty = self.beta * penalty
             self.restart(env, so_far + [action])

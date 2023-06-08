@@ -6,5 +6,11 @@ import logging
 
 
 if __name__ == "__main__":
-    print(np.pi)
-    pass
+    test_matrix = np.array([[1, 2, 5, 6],
+                            [1, 2, 55, 6],
+                            [1, 8, 5, 6],
+                            [1, 2, 5, 0.1]])
+    action_coverage = test_matrix.max(axis=1)
+    print(action_coverage)
+
+    # 5, 55, 8, 5

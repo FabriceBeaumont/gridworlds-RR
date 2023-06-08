@@ -47,12 +47,10 @@ class AUPAgent():
             return [], 0
         if len(so_far) == 0:
             if self.baseline == 'start':
-                self.null = self.attainable_Q[str(
-                    env.last_observations['board'])].max(axis=1)
+                self.null = self.attainable_Q[str(env.last_observations['board'])].max(axis=1)
             elif self.baseline == 'inaction':
                 self.restart(env, [safety_game.Actions.NOTHING] * steps_left)
-                self.null = self.attainable_Q[str(
-                    env.last_observations['board'])].max(axis=1)
+                self.null = self.attainable_Q[str(env.last_observations['board'])].max(axis=1)
                 env.reset()
         current_hash = (str(env.last_observations['board']), steps_left)
         if current_hash not in self.cached_actions:
@@ -95,12 +93,11 @@ class AUPAgent():
         reward, scaled_penalty = time_step.reward if time_step.reward else 0, 0
         if self.attainable_Q:
             # TODO: Case "stepwise_rollout" / chapter "Modifications required with the stepwise inaction baseline"
-            action_plan, inaction_plan = so_far + [action] + [safety_game.Actions.NOTHING] * (steps_left - 1), \
-                so_far + [safety_game.Actions.NOTHING] * steps_left
+            action_plan   = so_far + [action] + [safety_game.Actions.NOTHING] * (steps_left - 1)
+            inaction_plan = so_far + [safety_game.Actions.NOTHING] * steps_left
 
             self.restart(env, action_plan)
-            action_attainable = self.attainable_Q[str(
-                env._last_observations['board'])].max(axis=1)
+            action_attainable = self.attainable_Q[str(env._last_observations['board'])].max(axis=1)
 
             self.restart(env, inaction_plan)
             null_attainable = self.attainable_Q[str(env._last_observations['board'])][:, safety_game.Actions.NOTHING] \
