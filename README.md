@@ -12,7 +12,7 @@ Goal is to understand and implement the training of an agent, following the rela
 Used papers for inspiration and understanding:
 
 ## Relative Reachability (RR)
-- [Penalizing side effects using stepwise relative reachability](https://arxiv.org/pdf/1711.09883.pdf) [[1]](#1)
+- [Penalizing side effects using stepwise relative reachability]([https://arxiv.org/pdf/1711.09883.pdf](https://arxiv.org/abs/1806.01186)) [[1]](#1)
 - [Measuring and avoiding side effects using relative reachability](https://www.researchgate.net/profile/Viktoriya-Krakovna/publication/325557348_Measuring_and_avoiding_side_effects_using_relative_reachability/links/5bb7e5eaa6fdcc9552d46b02/Measuring-and-avoiding-side-effects-using-relative-reachability.pdf) [[2]](#2)
 
 ## Auxiliar Utility Preservation (AUP)
