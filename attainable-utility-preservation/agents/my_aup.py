@@ -74,7 +74,13 @@ class AUPAgent():
         self.baseline_state_coverage = bl_state_coverage
 
     def compute_baseline_coverage(self, env, so_far, steps_left)
-       if self.baseline == Baselines.STARTING or self.baseline == Baselines.INACTION:
+        """Return the covage of the basline state. That is how easily all other states can be reached from the baseline state.
+        '[R(s_0; s)]_{s \in S}' in the papers
+
+        Returns:
+            List[float]: _description_
+        """
+        if self.baseline == Baselines.STARTING or self.baseline == Baselines.INACTION:
             # In these cases the coverage of the baseline has already been computed in advance.
             return self.baseline_state_coverage
 
@@ -86,7 +92,8 @@ class AUPAgent():
             self.restart(env, inaction_plan)
             baseline_state = str(env._last_observations['board'])
 
-            self.baseline_state_coverage = self.coverage[baseline_state][:, safety_game.Actions.NOTHING]  # TODO: why not use 'max(axis=1)' here again?
+            # Get the coverage of all states, when taking only the noop-action.
+            self.baseline_state_coverage = self.coverage[baseline_state][:, safety_game.Actions.NOTHING]
 
         if self.baseline == Baselines.STEPWISE_ROLLOUT:
             # TODO: Add code for the stepwise rollout baseline here.
@@ -192,7 +199,7 @@ class AUPAgent():
             diff = baseline_coverage - action_coverage
                         
             # Do not penalize increases, thus use 'max(diff, 0)'.
-            diff[diff > 0] = 0  
+            diff[diff > 0] = 0
             # Define the penalty as the average reduction in reachability of all states from the current state, 
             # compared to the baseline state.
             penalty = np.average(diff)    

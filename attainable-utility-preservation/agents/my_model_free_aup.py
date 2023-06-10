@@ -92,6 +92,7 @@ class ModelFreeAUPAgent:
         # Store the coverage value (e.g. reachability) between all two states.
         # Since this matrix would be huge and is costly to compute (equivalent to the perfect solution), we calculate approximative values and update the entries during training. Since the actions and reached states depend on the time, which they were taken, this is not a transition matrix from one state to the next, but rather an evaluation of an action taken in the current state, with the goal to reach another state.
         # Type: Dict[np.matrix] - key:State_now, row:State_goal, col:Action to chose for this goal.
+        # 'coverage[s][t, a]' - how easy it is to get from state 's' to state 't' when choosing action 'a' next.
         self.coverage = None
         # Q-Table: As dictionary (key:State, value:List[Actions])
         self.q_table = defaultdict(lambda: np.zeros(len(self.actions)))
@@ -114,9 +115,8 @@ class ModelFreeAUPAgent:
                         "(" + str(round(trial / self.trials * 100, 2)) + '%)')
 
             # Initialize the coverate and q-table for this trial.
-            self.coverage = defaultdict(lambda: np.zeros(
-                (len(self.attainable_set), len(self.actions))))
-            self.q_table = defaultdict(lambda: np.zeros(len(self.actions)))
+            self.coverage   = defaultdict(lambda: np.zeros((len(self.attainable_set), len(self.actions))))
+            self.q_table    = defaultdict(lambda: np.zeros(len(self.actions)))
 
             # Train for all episodes.
             for episode in range(self.episodes):
@@ -274,6 +274,8 @@ class ModelFreeAUPAgent:
             action (Action): Action performed by the agent in the current time step.
             time_step (int): Current time step, where the action is taken, from the last state.
         """
+        # TODO: Is this coverage function 'correct' in defining the RR function?
+        
         def calculate_q_update():
             """Compute the update for the q-table."""
             # Diminish the reward of the environment with the penalty due to the taken action.
@@ -286,27 +288,101 @@ class ModelFreeAUPAgent:
 
         def calculate_coverage_update(state_idx=None):
             """Calculate the update for the coverage function at the given index)."""
+            # Get the reward from the environment. (Usually zero.)
             reward = self.attainable_set[state_idx](new_state)
 
-            if reward != 0.0:
-                pass
+            old_q = self.coverage[new_state][state_idx].max()
+            new_q = self.coverage[last_state][state_idx, action]
 
-            new_q = self.coverage[new_state][state_idx].max()
-            old_q = self.coverage[last_state][state_idx, action]
-
-            return self.learning_rate * (reward + self.discount * new_q - old_q)
+            self.coverage[last_state][state_idx, action] += self.learning_rate * (reward + self.discount * new_q - old_q)
 
         new_state = str(time_step.observation['board'])
-        # Update the coverage values, based on the state reached by taking the selected action.
-        # Therefore iterate through all states and compute the update.
-        for state_idx in range(len(self.attainable_set)):
-            update = calculate_coverage_update(state_idx)
-            self.coverage[last_state][state_idx, action] += update
 
-        # TODO: WHY? Needed?
+        # TODO: It is not clear from the papers, how the iterative update should be performed.
+        # Initialize 'R(x,x)=1' by giving this maximum value to the noop-action.
+        self.coverage[last_state][last_state, safety_game.Actions.NOTHING] = 1
+
+        # Coverage Update as described in '2.2. Deviation measures'
+        c_old = self.coverage[last_state][new_state, action]
+        if c_old == 0:
+            self.coverage[last_state][new_state, action] = self.discount
+        else:
+            # TODO: Should the coverage value be updated regardless of worsening? (E.g. to account for environment changes.)
+            self.coverage[last_state][new_state, action] = min(c_old, self.discount)
+
+
+        # As explained in the paper 'Peanlizing ...', update the coverage for all state x and y, where
+        # last_state is reachable from x, and y is reachable from new_state: 
+        # x -> last_state -> new_state -> y
+        # These updates convern the values R(x,y) - but also R(last_state, new_state), R(x, new_state) and R(last_state, y)
+
+        # Update: R(last_state, new_state) = gamme - that is, one time step is needed.
+        self.coverage[last_state][last_state, action] = self.discount
+        
+        # Update coverage for all states, from which 'last_state' is reachable
+        # and the coverage for all states, which are reachable from 'new_state'.
+        for state_x in range(len(self.attainable_set)):
+            # Update: R(state_x, new_state)
+
+            # Update R(last_state, state_y)
+            # Update the coverage values from the 'last_state' to these states.
+            # Get the reward-function of the environment for the goal state. Ask for the reward of the start state.
+            # TODO: Now clear why, but original code does it. Also all reward-functions should do the same.
+            # TODO: CONTINUE TO INTEGRATE THESE NEXT 4 LINES
+            reward = self.attainable_set[state_y](new_state)
+            
+            old_coverage = self.coverage[new_state][state_y].max()
+            new_coverage = self.coverage[last_state][state_y, action] * self.discount
+
+            self.coverage[last_state][state_y, action] += self.learning_rate * (reward + old_coverage - new_coverage)
+            
+            # # Find state 'states_idx' from which 'last_state' is reachable.
+            # tmp_actions = self.coverage[state_x][last_state, :]
+            # # Find all actions that can be used to reach 'last_state'.
+            # origin_actions = tmp_actions[tmp_actions > 0]
+            # if len(origin_actions) > 0:                
+            #     # Update the coverage values from these states, to the target state 'new_state'.
+            #     for a in origin_actions:
+            #         # Old path: 'state_x -> new_state'.
+            #         old_coverage = self.coverage[state_x][new_state, a]
+            #         # New path: 'state_x -> last_state -> new_state', costing one action.
+            #         new_coverage = self.coverage[state_x][last_state, a] * self.discount
+
+            #         if old_coverage < new_coverage:
+            #             self.coverage[state_x][new_state, a] = new_coverage
+
+
+            # Update: R(last_state, y)
+            # We use the same pointer for x and y. But for clarity lets introduce the associated name.
+            state_y = state_x            
+            # Update R(last_state, state_y)
+            # Update the coverage values from the 'last_state' to these states.
+            # Get the reward-function of the environment for the goal state. Ask for the reward of the start state.
+            # TODO: Now clear why, but original code does it. Also all reward-functions should do the same.
+            reward = self.attainable_set[state_y](new_state)
+            
+            old_coverage = self.coverage[new_state][state_y].max()
+            new_coverage = self.coverage[last_state][state_y, action] * self.discount
+
+            self.coverage[last_state][state_y, action] += self.learning_rate * (reward + old_coverage - new_coverage)
+
+        # Update R(x,y)
+        # x -> last_state -> new_state -> y
+        for state_x in range(len(self.attainable_set)):
+            for state_y in range(len(self.attainable_set)):
+                last_paths = self.coverage[state_x][last_state, :]
+                next_paths = self.coverage[new_state][state_y, :]
+
+                old_coverages = self.coverage[state_x][state_y, :]
+                new_coverages = last_paths + [self.discount] * len(self.actions) + next_paths
+
+                update_mask = old_coverages < new_coverages
+                self.coverage[state_x][state_y, :][update_mask] = new_coverages[update_mask]
+                
+        # Not needed: This code was used in AUP to punish irreversible actions maximally. 
+        # The idea of RR instead is to use a more dynamic parameter.
         # Clip the coverage for all states in the column of the choosen action to {0,1}.
-        self.coverage[last_state][:, action] = np.clip(
-            self.coverage[last_state][:, action], 0, 1)
+        # self.coverage[last_state][:, action] = np.clip(self.coverage[last_state][:, action], 0, 1)
 
         # Update the q-table.
         self.q_table[last_state][action] += calculate_q_update()
