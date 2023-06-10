@@ -151,14 +151,15 @@ We define an asymmetric deviation measure called \textbf{reachability}.
 	
 	A recursive computation can be done like this:
 	\begin{flalign*}
-		R(x,y) &:= \gamma_r \max\limits_{a} \sum_{z \in S} p(z| \; x,a) R(z,y)\\
-		&\stackrel{?}{=} \gamma_r^{n} \max\limits_{a_1} \sum_{z_1 \in S} p(z_1| \; x,a_1) \Big( \max\limits_{a_2} \sum_{z_2 \in S} p(z_2| \; z_1,a_2) \dots \max\limits_{a_{n}} \sum_{z_{n} \in S} (0+ p(y| \; z_{n},a_{n})*1)\Big)
+		R(x,y) &:= \gamma \max\limits_{a} \sum_{z \in S} p(z| \; x,a) R(z,y)\\
+		&= \gamma^{n} \max\limits_{a_1} \sum_{z_1 \in S} p(z_1| \; x,a_1) \Big(\max\limits_{a_2}\sum_{z_2 \in S} p(z_2| \; z_1,a_2) \dots \\
+		&&&\hspace{-1cm}\max\limits_{a_{n}} \sum_{z_{n} \in S} (0+ p(y| \; z_{n},a_{n})*1)\Big)
 	\end{flalign*}
 	where $n=N_{\pi}(x,y)$. And it is $R(y,y)=1$.\\
 	
-	\textit{Special case}: \textbf{Undiscounted reachability} ($\gamma_r=1$), which computes whether $y$ is reachable in any number of steps. In this cased it is (see paper for proof):
+	\textit{Special case}: \textbf{Undiscounted reachability} ($\gamma=1$), which computes whether $y$ is reachable in any number of steps. In this cased it is (see paper for proof):
 	\[ R(x,y) = \max_\pi \IP\big( N_{\pi}(x,y)<\infty \big)  = \begin{cases}
-		1 \ y \text{ is reachable from }x\\
+		1 \ y \text{if is reachable from }x\\
 		0 \ \text{otherwise}
 	\end{cases}\]	
 	
@@ -180,15 +181,72 @@ The unreachability deviation measure is often used to compute the unreachability
 	
 \end{Definition}
 
-\begin{Definition}{Attainable utility}{}{}
-	The \textbf{attainable utility measure} $d_{\text{VD}}:S\times S\to \IR$ denotes the average gain in reward by obtaining a state $x$ compared to a state $y$. To define it, we define the \textbf{value} $V_r:S\to \IR$ of a state $x$ according to a reward function $r$. Therefore let $x_t^{\pi}$ denote the state obtained from $x$ by following policy $\pi$ for $t$ steps. It is
-	\[ V_r(x) := \max_\pi \sum_{t=0}^{\infty} \gamma_r^k \ r(x_t^{\pi}) \]
+\subsection{Generalization}
+
+The RR (and AU% TODO
+) deviation measures are examples of the so called \textit{value-difference measures}:
+
+\begin{Definition}{State value measure}{}{}
+	The \textbf{state-value measure} $V_v:S\to \IR$ denotes the value of a state $x$. 
+	Let $\mathcal{V}$ be a set of value sources and $v\in V$.
+	$V_v$ is defined as the maximum sum of all value functions for all states, which are reachable from the state in question $x$. 
+	To express this reachability let $x_t^{\pi}$ denote the state obtained from $x$ by following policy $\pi$ for $t$ steps. It is
+	\[ V_v(x) := \max_\pi \sum_{t=0}^{\infty} \gamma_v^t \ v(x_t^{\pi}) \]
 	
-	\texttodo{Was ist $k$? $x$ is die reward function $r$? Die ist aber fuer States UND Aktionen definiert. Ist die Summe aller rewards fuer alle States und Aktionen gemaess $\pi$ gemeint?]} 
-	$r(x_t^{\pi}) = \sum_{t_1=0}^{\infty} r(x_{t_1}, a_{t_1})$ sodass $(x_{t_1}, a_{t_1})\in\pi$. 
-	\texttodo{Vermutung fuer $k$: Wie beim inaction rollout time step difference zum aktuellen time step. Frage: Sollte das values eines states nicht abhaengig vom time step des states sein?}
+	For the stepwise inaction baseline, the definition is extended to a \textbf{rollout value measure} $RV_v:S\to\IR$. Recall that for a state $x_t$ its rollout of $k$ time steps, starting from time step $t$ is denoted as $x_{t+k}^{(t)}$. It is:
+	\[ RV_v(x_t) := (1-\gamma_v) \sum_{k=0}^{\infty} \gamma_v^k V_v(x^{(t)}_{t+k})  \]
+	This rollout value measure can be computed recursively as well:
+	\[ RV_v(x_t) = (1-\gamma_v) \big( V_v(x_t) + \gamma_v RV_v(I(x_t))\big)\]
+	where $I(x_t)$ is the inaction function that gives the state reached by following the inaction policy form state $x_t$.
+\end{Definition}
+To better understand the definition of the $RV$ function, lets unravel it:
+\[ RV_v(x_t) := (1-\gamma_v) \sum_{k=0}^{\infty} \gamma_v^k V_v(x^{(t)}_{t+k}) 
+= \sum_{k=0}^{\infty} \gamma_v^k V_v(x^{(t)}_{t+k}) \ - \ \gamma_v \sum_{k=0}^{\infty} \gamma_v^k V_v(x^{(t)}_{t+k}) \]
+and 
+\[ RV_v(x_t) := (1-\gamma_v) \sum_{k=0}^{\infty} \gamma_v^k V_v(x^{(t)}_{t+k}) = (1-\gamma_v) \sum_{k=0}^{\infty} \gamma_v^k
+\max_\pi \sum_{t=0}^{\infty} \gamma_v^t \ v(x_t^{\pi}) \]
+
+Examples:
+\begin{itemize}
+	\item RR: $v=\tilde{s}$ reachability function as comparison to another state $\tilde{s}$ and $\mathcal{V}=\mathcal{S}$ the set of all states.
+	Note that in this case $\gamma_v$ can be written as $\gamma$ since it is constant for all states.\\
+	In the definition of $v$ as a function, the value of a state is defined recursively as the reachability of other states $s$ from it:
+	\begin{flalign*}
+		V_{\tilde{s}}(x) &:= \max_\pi \sum_{t=0}^{\infty} \gamma^t \ v(x_t^{\pi})\\
+		&= R(x,\tilde{s})\\
+		&= \gamma \max\limits_{a} \sum_{z \in S} p(z| \; x,a) R(z,\tilde{s})
+	\end{flalign*}
+	with $R(x,x)=1$.\\
+	The equivalent recursive formula goes as follows:
+	\begin{flalign*}
+		RV_{\tilde{s}}(x_t) &:= (1-\gamma_v) \big( V_{\tilde{s}}(x_t) + \gamma_v RV_{\tilde{s}}(I(x_t))\big)\\
+		&= RV(x_t, \tilde{s})\\		
+		&= (1-\gamma) \big( R(x_t, \tilde{s}) + \gamma RV_{\tilde{s}}(I(x_t))\big)\\
+		&= (1-\gamma) \big( \gamma \max\limits_{a} \sum_{z \in S} p(z| \; x_t,a) R(z,\tilde{s}) + \gamma RV_{\tilde{s}}(I(x_t))\big)\\
+		&= (1-\gamma) \big( \gamma \max\limits_{a} \sum_{z \in S} p(z| \; x_t,a) R(z,\tilde{s}) + \gamma^2 \sum_{z \in S} p(z| \; x_t,a^{\text{noop}}) R(z,\tilde{s}) \big)
+	\end{flalign*}
+	\item AU: $v=r$ a reward function and $\mathcal{V}=\mathcal{R}$ a collection of reward functions.\\
+	\[ V_r(x) := \max_\pi \sum_{t=0}^{\infty} \gamma_r^t \ r(x_t^{\pi}) \]
+	The reward of one state is computed by adding up all rewards from the states reached while transitioning to the target state. That is
+	$v(x_t^{\pi}):=r(x_t^{\pi}) = \sum_{t_1=0}^{\infty} r(x_{t_1}, a_{t_1})$ such that $(x_{t_1}, a_{t_1})\in\pi$. 
+\end{itemize}
+
+\begin{Definition}{Value-difference measure}{}{}
+	The \textbf{value-difference measure} $d_{\text{VD}}:S\times S\to \IR$ denotes the average gain in reward by obtaining a state $x$ compared to a state $y$. Let $\mathcal{V}$ be a set of value sources, $V_v$ be a state-value function for reward $v\in\mathcal{V}$. Let $w_v\in\IR$ be a weighting or normalizing factor (usually $w_v:=\frac{1}{|\mathcal{V}|}$)and $f:\IR\to\IR$ a summarizing function.
+	(Examples are given below.)
+	
+	\[ d_{VD}(s_t;\; s_t^\prime) := \sum_{v\in \mathcal{V}} w_v f\big(V_v(s_t^\prime)-V_v(s_t)\big) \]
+	
+	For the stepwise inaction baseline, the definition is extended to rollout states for the current state $s_t$, and the baseline state $s^\prime := s_t^{(t-1)}$ (stepwise inaction baseline). 
 \end{Definition}
 
+Examples:
+\begin{itemize}
+	\item RR: $w_v = \frac{1}{|\mathcal{S}|}$ and \\
+	$f(d) = \max(d,0)$ (\enquote{truncated difference}, penalizing decreases in value)
+	\item AU: $w_v = \frac{1}{|\mathcal{R}|}$ and \\
+	$f(d) = |d|$ (\enquote{absolute difference}, penalizing all changes in value)
+\end{itemize}
 
 \newpage
 %%%% ----------------------- %%%%
