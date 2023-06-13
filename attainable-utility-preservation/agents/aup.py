@@ -92,7 +92,6 @@ class AUPAgent():
         time_step = env.step(action)
         reward, scaled_penalty = time_step.reward if time_step.reward else 0, 0
         if self.attainable_Q:
-            # TODO: Case "stepwise_rollout" / chapter "Modifications required with the stepwise inaction baseline"
             action_plan   = so_far + [action] + [safety_game.Actions.NOTHING] * (steps_left - 1)
             inaction_plan = so_far + [safety_game.Actions.NOTHING] * steps_left
 

@@ -11,5 +11,6 @@
             "env": {"PYTHONPATH": "${workspaceFolder}${pathSeparator}${env:PYTHONPATH}"},
             "terminal.integrated.env.linux": {"PYTHONPATH": "${workspaceFolder}${pathSeparator}${env:PYTHONPATH}"}
         }
-    ]
+    ],
+    "python.pythonPath": "venv_p2_aup/bin/python"
 }

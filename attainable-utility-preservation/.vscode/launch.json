@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: Current File",
+            "name": "Python:FindModuleInWorkspace",
             "type": "python",
             "request": "launch",
             "program": "${file}",
@@ -13,8 +13,24 @@
             "justMyCode": true,
             "cwd": "${workspaceFolder}",
             // "env": {"PYTHONPATH": "${cwd}"}
-            //"cwd": "${fileDirname}",
+            // "cwd": "${fileDirname}",
             "env": {"PYTHONPATH": "${workspaceFolder}${pathSeparator}${env:PYTHONPATH}"}
+        },
+        {
+            "name": "Python:FindModuleInCWD",
+            "type": "python",
+            "request": "launch",            
+            "program": "${file}",
+            "console": "integratedTerminal",            
+            "cwd": "${workspaceFolder}",
+            "env": {"PYTHONPATH": "${cwd}"}
+        },
+        {
+            "name": "Python:DefaultConfig",
+            "type": "python",
+            "request": "launch",            
+            "program": "${file}",
+            "console": "integratedTerminal"
         }
     ]
 }

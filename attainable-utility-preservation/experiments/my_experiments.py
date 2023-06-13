@@ -4,21 +4,15 @@ from collections import defaultdict
 from datetime import datetime
 import logging
 
+# from agents.my_model_free_aup import ModelFreeAUPAgent
+# from environment_helper import *
 
 if __name__ == "__main__":
-    x = np.array([1, 2, 5, 6])
+    # x = np.array([1, 2, 5, 6])
+    x = [1, 2, 5, 6]
 
-    mask = x > 3
-    mask1 = x[x > 8]
-
-    print(mask)
-    print(len(mask))
-
-
-    print(mask1)
-    print(len(mask1))
-
-    # 6, 55, 8, 5
+    last_state_id = x.index(5)
+    print(last_state_id) # Expect 2
 
 
 #      a_1 a_2 a_3 a_4

@@ -125,19 +125,18 @@ class ModelFreeAUPAgent:
             if attainable_idx is not None:
                 reward = self.attainable_set[attainable_idx](new_board) if self.state_attainable \
                     else self.attainable_set[attainable_idx][new_board]
-                new_Q, old_Q = self.attainable_Q[new_board][attainable_idx].max(), \
-                    self.attainable_Q[last_board][attainable_idx, action]
+                new_Q = self.attainable_Q[new_board][attainable_idx].max()
+                old_Q = self.attainable_Q[last_board][attainable_idx, action]
             else:
                 reward = time_step.reward - \
                     self.get_penalty(last_board, action)
-                new_Q, old_Q = self.AUP_Q[new_board].max(
-                ), self.AUP_Q[last_board][action]
+                new_Q = self.AUP_Q[new_board].max()
+                old_Q = self.AUP_Q[last_board][action]
             return learning_rate * (reward + self.discount * new_Q - old_Q)
 
         # Learn the attainable reward functions
         for attainable_idx in range(len(self.attainable_set)):
-            self.attainable_Q[last_board][attainable_idx,
-                                          action] += calculate_update(attainable_idx)
+            self.attainable_Q[last_board][attainable_idx, action] += calculate_update(attainable_idx)
         if self.state_attainable:
             self.attainable_Q[last_board][:, action] = np.clip(
                 self.attainable_Q[last_board][:, action], 0, 1)

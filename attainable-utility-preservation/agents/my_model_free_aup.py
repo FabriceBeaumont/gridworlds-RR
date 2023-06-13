@@ -276,6 +276,7 @@ class ModelFreeAUPAgent:
         """        
         def calculate_q_update(last_state, new_state, action):
             """Compute the update for the q-table."""
+
             # Diminish the reward of the environment with the penalty due to the taken action.
             reward = time_step.reward - self.get_penalty(last_state, action)
 
@@ -300,8 +301,28 @@ class ModelFreeAUPAgent:
                 new_state (str): String representation of the current state.
                 action (safety_game.Actions): Action, that took the agent from the last to the current state.
             """
+            def compute_state_indices(last_state, new_state):
+                """Since we will need to access the rows in matrices, corresponding to these states (strings), lets compute our their corresponding indices.
+                We do this by iterating of the state-indicator functions defined by the environment helper.
 
-            def initialize_coverage(last_state, new_state, action):
+                Args:
+                    last_state (str): _description_
+                    new_state (str): _description_
+                """
+                
+                last_state_id, new_state_id = None, None            
+                for state_id, state_indicator_fct in enumerate(self.attainable_set):
+                    if state_indicator_fct(last_state) > 0:
+                        last_state_id = state_id
+                    elif state_indicator_fct(new_state) > 0:
+                        new_state_id = state_id
+                    if (last_state_id is not None) and (new_state_id is not None):
+                        break
+
+                return last_state_id, new_state_id
+
+                
+            def initialize_coverage(last_state, last_state_id, new_state, new_state_id, action):
                 """Initialize the coverage value, FOR these states and the action.
                 This uses the definition of 'R(x,x)=1' and the underlying idea of the reachability function R
                 to count the number of necessary steps (actions) to get from one state to the other.
@@ -314,76 +335,71 @@ class ModelFreeAUPAgent:
                 """
                 # Initialize 'R(x,x)=1' by giving this maximum value to the noop-action.
                 # TODO QUESTION: Shall we to this for all actions?
-                self.coverage[last_state][last_state, safety_game.Actions.NOTHING] = 1
+                # self.coverage[last_state][last_state_id, :] = [1] * len(safety_game.Actions)
+                self.coverage[last_state][last_state_id, safety_game.Actions.NOTHING] = 1                
 
-                # Coverage Update as described in '2.2. Deviation measures'
-                # The coverage (reachability) from 'last_state' to 'new_state' is one step (taking action 'action').        
-                c_old = self.coverage[last_state][new_state, action]        
-                if c_old == 0:
-                    # No value has been stored yet. Thus taking the action 'action' is our initial best guess.
-                    self.coverage[last_state][new_state, action] = self.discount
-                else:
-                    # In this case, we have already set a coverage value to get from 'last_state' to 'new_state'.
-                    # Update it only, if the new value is lower!
-                    # TODO QUESTION: Should the coverage value be updated regardless of worsening? (E.g. to account for environment changes. That is: at the current time, the worse value could be the more accurate one.)
-                    self.coverage[last_state][new_state, action] = min(c_old, self.discount)
-                        
-            initialize_coverage(last_state, new_state, action)
+            # Get the corresponding indices of the states, to use them for matrix value access.
+            last_state_id, new_state_id = compute_state_indices(last_state, new_state)
+
+            # Initialize trivial coverage values ('R(y,y) = 1').
+            initialize_coverage(last_state, last_state_id, new_state, new_state_id, action)
+
+            # TODO: CONTINUE DEBUGGING.
+            # TODO: SEE NEW CODE.
             
+            # Coverage Update as described in '2.2. Deviation measures' and '3. Experiments' page 9, shortest path update.            
             # Update: R(last_state, new_state) = gamma - that is, one time step is needed.
-            self.coverage[last_state][last_state, action] = self.discount
-
+            # This update is INCLUDED in the following (via for-loop).
             # Update: R(state_x, new_state) and R(last_state, state_y) 
             # Update coverage for all states (state_x), from which 'last_state' is reachable
             # and the coverage for all states (state_y), which are reachable from 'new_state'.
             for state_x in range(len(self.attainable_set)):
-                # TODO GUESSED: Not clear why, but original code does it. Also all reward-functions should do the same:
-                # Get the reward-function of the environment for the goal state. Ask for the reward of the start state.
-                reward = self.attainable_set[state_x](new_state)
-
+                # TODO QUESTION: Do we need to prevent 'state_x == new_state' for this update?
                 # Update: R(state_x, new_state)
                 # Update the coverage values from the states in the for-loop to the 'new_state'.            
-                # Get the best guess 'so far' to get from 'last_state' to 'new_state'.
-                old_coverage = self.coverage[last_state][new_state].max()
-                # Get the new coverage value to get from 'state_x' to 'new_state', 
-                # including taking 'action' to go over 'last_state'.
-                chosen_coverage = self.coverage[state_x][new_state, action] * self.discount
-                # TODO GUESSED: Not clear why, but original code does it:
+                # Get the best guess 'so far' to get from 'state_x' to 'last_state',
+                # and then using one step ('self.discount') to get from 'last_state' to 'new_state'.
+                new_coverage = self.coverage[state_x][last_state_id].max() * self.discount
+                # Get the previous guess to get from 'state_x' to 'new_state' for this action somehow.
+                old_coverage = self.coverage[state_x][new_state_id, action]                
                 # Update
-                self.coverage[state_x][new_state, action] += self.learning_rate * (reward + old_coverage - chosen_coverage)
+                self.coverage[state_x][new_state_id, action] += self.learning_rate * (new_coverage - old_coverage)
+                # Notice how for 'state_x == last_state' this includes the update R(last_state, new_state)!
+                # Therefore exclude this case in the second update! This happens, when 'state_y == new_state'
                 
                 # We use the same variable/loop for 'state_x' and 'state_x'. 
                 # But for clarity lets introduce the proper associated name.
-                state_y = state_x            
+                state_y = state_x
+                if state_y == new_state_id:
+                    continue
 
                 # Update: R(last_state, state_y)
-                # Update the coverage values from the 'last_state' to all states in the for-loop.
-                # Get the best guess 'so far' to get from 'new_state' to 'state_y'.
-                old_coverage = self.coverage[new_state][state_y].max()
-                # Get the new coverage value to get from 'last_state' to 'state_y', 
-                # including taking 'action' to go over 'new_state'.
-                chosen_coverage = self.coverage[last_state][state_y, action] * self.discount
-                # TODO GUESSED: Not clear why, but original code does it:
+                # Update the coverage values from the 'last_state' to all states in the for-loop.                
+                # Using one step ('self.discount') to get from 'last_state' to 'new_state', and then 
+                # the best guess 'so far' to get from 'new_state' to 'state_y'.
+                new_coverage = self.coverage[new_state][state_y].max() * self.discount
+                # Get the previous guess to get from 'last_state' to 'state_y' for this action somehow.
+                old_coverage = self.coverage[last_state][state_y, action]
                 # Update
-                self.coverage[last_state][state_y, action] += self.learning_rate * (reward + old_coverage - chosen_coverage)
+                self.coverage[last_state][state_y, action] += self.learning_rate * (new_coverage - old_coverage)
 
+            # Coverage Update as described in '3. Experiments', page 9, update R(x,y).
             # Update R(state_x, state_y)
             # state_x -> last_state -> new_state -> state_y
             for state_x in range(len(self.attainable_set)):
                 for state_y in range(len(self.attainable_set)):
-                    last_paths = self.coverage[state_x][last_state, :]
-                    next_paths = self.coverage[new_state][state_y, :]
 
-                    old_coverages = self.coverage[state_x][state_y, :]
-                    chosen_coverage = last_paths + [self.discount] * len(self.actions) + next_paths
+                    cov_x_last = self.coverage[state_x][last_state_id].max()
+                    cov_new_y = self.coverage[new_state][state_y].max()
 
-                    # Select the indices of only these actions, where an improvement can be made by chosing the action.
-                    update_mask = old_coverages < chosen_coverage
-                    self.coverage[state_x][state_y, :][update_mask] = chosen_coverage[update_mask]
+                    new_coverage = cov_x_last * self.discount * cov_new_y                    
+                    old_coverages = self.coverage[state_x][state_y, action]
+                                        
+                    self.coverage[state_x][state_y, action] += self.learning_rate * (new_coverage - old_coverage)
                 
         
         new_state = str(time_step.observation['board'])
-
+        
         # Udpate the coverage (reachability R('last_state', 'new_state'))
         calculate_coverage_update(last_state, new_state, action)
                 

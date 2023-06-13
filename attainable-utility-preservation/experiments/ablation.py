@@ -1,7 +1,7 @@
 from __future__ import print_function
 from ai_safety_gridworlds.environments import *
-from agents.model_free_aup import ModelFreeAUPAgent
-from agents.model_free_aup_cleaned import ModelFreeAUPAgentClean
+# ORIGINAL from agents.model_free_aup import ModelFreeAUPAgent
+from agents.my_model_free_aup import ModelFreeAUPAgent
 
 from environment_helper import *
 import datetime
@@ -82,9 +82,10 @@ def run_agents(env_class, env_kwargs, render_ax=None):
     :param render_ax: PyPlot axis on which rendering can take place.
     """
     # Instantiate environment and agents
-    env = env_class(**env_kwargs)
-    # model_free_rr = ModelFreeAUPAgentClean(env, trials=1)
-    model_free = ModelFreeAUPAgent(env, trials=1)
+    env = env_class(**env_kwargs)    
+
+    model_free = ModelFreeAUPAgent(env, trials=2)
+    # ORIGINAL model_free = ModelFreeAUPAgent(env, trials=1)
     state = (ModelFreeAUPAgent(env, state_attainable=True, trials=1))
     movies, agents = [], [
         AUPAgent(attainable_Q=model_free.attainable_Q, baseline='stepwise'),
