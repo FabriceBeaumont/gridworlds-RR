@@ -14,8 +14,12 @@ class Baselines(Enum):
 
 
 class Deviations(Enum):
-    # TODO: explain
+    # Absolute deviation means that the penality update is computed based on any change of the coverage value.
+    # Positive or negative change is punished. 
+    # Thus use the summary function 'f(x) = |x|' [implemented as 'abs(x)'].
     ABSOLUTE = "absolute"
+    # Decrease in deviation means, that coverage improvements (decrease) are not punished.
+    # Thus use the summary function 'f(x) = max(0, x)' [implemented as 'diff[diff > 0]'].
     DECREASE = "decrease"
 
 
@@ -27,7 +31,7 @@ class AUPAgent():
 
     def __init__(self, coverage, beta=1/1.501, discount=.996, baseline=Baselines.STEPWISE, deviation=Deviations.DECREASE, use_scale=False):
         """
-        :param coverage:    Coverage functions for all states. (Dict) # TODO: type
+        :param coverage:    Coverage functions for all states. Dict[np.matrix] - key:State_now, row:State_goal, col:Action to chose for this goal.
         :param beta:        Scale harshness of penalty. Impact tuning parameter/ Scaling of the intrinsic pseudo-reward. (float)
         :param discount:
         :param baseline:    That with respect to which we calculate impact.
@@ -44,6 +48,7 @@ class AUPAgent():
         self.init_agent_name()
 
     def init_agent_name(self):
+        # TODO: Check if self.name is needed elswhere. Otherwise use 'AUP_stepwise', 'AUP_startingState', ...
         if baseline != Baselines.STEPWISE:
             self.name = baseline.capitalize()
             if baseline == Baselines.STARTING:
@@ -97,7 +102,7 @@ class AUPAgent():
 
         if self.baseline == Baselines.STEPWISE_ROLLOUT:
             # TODO: Add code for the stepwise rollout baseline here.
-            # TODO: d_{SUR} / Section Modifications required with the stepwise inaction baseline / page 8
+            # TODO: Recursive formula from section 'Modifications required with the stepwise inaction baseline' / page 8
             pass
 
         return self.baseline_state_coverage
