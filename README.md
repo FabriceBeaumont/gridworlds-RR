@@ -2,10 +2,10 @@
 This is a repository contains experiments on Reinforcement Learning algorithms.
 
 The code is based on clones of
-- [Side Effects Penalties] (https://github.com/deepmind/deepmind-research/side_effects_penalties)
-- [Ai Safety Gridworlds] (https://github.com/deepmind/ai-safety-gridworlds)
-- [Gym AI Safety Gridworlds] (https://github.com/TheMrCodes/gym-ai-safety-gridworlds)
-- [Attainable Utility Preservation] (https://github.com/alexander-turner/attainable-utility-preservation)
+- [Side Effects Penalties](https://github.com/deepmind/deepmind-research/side_effects_penalties)
+- [Ai Safety Gridworlds](https://github.com/deepmind/ai-safety-gridworlds)
+- [Gym AI Safety Gridworlds](https://github.com/TheMrCodes/gym-ai-safety-gridworlds)
+- [Attainable Utility Preservation](https://github.com/alexander-turner/attainable-utility-preservation)
 
 ## Notes
 Goal is to understand and implement the training of an agent, following the relative reachability coverage function to peanalize its impact on the environment. Implement the *starting state*, *inaction*, *stepwise baseline* - and its updated version suggested in [[1]](#1) - which we call *stepwise rollout baseline*.
