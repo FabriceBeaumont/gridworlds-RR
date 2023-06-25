@@ -68,8 +68,8 @@ class EpsilonGreedyPolicy(object):
 class QLearning(object):
   """Q-learning agent."""
 
-  def __init__(self, actions, alpha=0.1, epsilon=0.1, q_initialisation=0.0,
-               discount=0.99):
+  def __init__(self, actions, alpha:float = 0.1, epsilon:float = 0.1, q_initialisation: float =0.0,
+               discount: float =0.99):
     """Create a Q-learning agent.
 
     Args:
@@ -80,15 +80,18 @@ class QLearning(object):
       discount: discount factor for rewards.
     """
 
+    # Store the Q-table.
     self._value_function = collections.defaultdict(lambda: q_initialisation)
+    # Store the action space.
     self._valid_actions = list(range(actions.minimum, actions.maximum + 1))
+    # Set the training policy.    
     self._policy = EpsilonGreedyPolicy(self._value_function,
                                        self._valid_actions)
 
     # Hyperparameters.
-    self.alpha = alpha
-    self.epsilon = epsilon
-    self.discount = discount
+    self.alpha = alpha        # TODO: explain
+    self.epsilon = epsilon    # TODO: explain
+    self.discount = discount  # TODO: explain
 
     # Episode internal variables.
     self._current_action = None
@@ -100,6 +103,7 @@ class QLearning(object):
     self._current_action = None
 
   def _timestep_to_state(self, timestep):
+    # TODO: Understand this converstion. Assertion: Mediate betwen immutable tuple and mutable np.array data types.
     return tuple(map(tuple, np.copy(timestep.observation['board'])))
 
   def step(self, timestep):

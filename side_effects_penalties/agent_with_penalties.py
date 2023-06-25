@@ -19,8 +19,13 @@ from __future__ import division
 from __future__ import print_function
 
 import numpy as np
-from side_effects_penalties import agent
-from side_effects_penalties import side_effects_penalty as sep
+
+# ORIGINAL CODE:
+# from side_effects_penalties import agent
+# from side_effects_penalties import side_effects_penalty as sep
+# REPLACED BY:
+import agent
+import side_effects_penalty as sep
 
 
 class QLearningSE(agent.QLearning):

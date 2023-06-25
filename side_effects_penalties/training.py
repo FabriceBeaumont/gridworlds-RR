@@ -18,22 +18,29 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+from typing import List, Set, Tuple, Any, Optional
+# Only for type hints:
+from side_effects_penalty import *
+from agent import *
+
 from ai_safety_gridworlds.helpers import factory
 import numpy as np
 from six.moves import range
 
+""" Initialize the environment (possibly also as simulation for the baseline), 
+  run the agent for a number of episodes on the environment (thereby training it).
+"""
 
-def get_env(env_name, noops,
-            movement_reward=-1, goal_reward=1, side_effect_reward=-1):
+def get_env(env_name, noops, movement_reward=-1, goal_reward=1, side_effect_reward=-1) -> Tuple[Any, int]:
   """Get a copy of the environment for simulating the baseline."""
   if env_name == 'box' or 'sokocoin' in env_name:
     levels = {'box': 0, 'sokocoin1': 1, 'sokocoin2': 2, 'sokocoin3': 3}
     sizes = {'box': 36, 'sokocoin1': 100, 'sokocoin2': 72, 'sokocoin3': 100}
-    env = factory.get_environment_obj(
-        'side_effects_sokoban', noops=noops, movement_reward=movement_reward,
-        goal_reward=goal_reward, wall_reward=side_effect_reward,
+
+    env = factory.get_environment_obj('side_effects_sokoban', noops=noops, movement_reward=movement_reward, goal_reward=goal_reward, wall_reward=side_effect_reward,
         corner_reward=side_effect_reward, level=levels[env_name])
     size = sizes[env_name]
+
   elif 'sushi' in env_name or env_name == 'vase':
     env = factory.get_environment_obj(
         'conveyor_belt', variant=env_name, noops=noops, goal_reward=goal_reward)
@@ -44,13 +51,16 @@ def get_env(env_name, noops,
   return env, size
 
 
-def run_loop(agent, env, number_episodes, anneal):
-  """Training agent."""
-  episodic_returns = []
-  episodic_performances = []
+def run_loop(agent, env, number_episodes: int, anneal: bool) -> Tuple[List[float], List[float]]:
+  """Training agent.""" #TODO: Ins this eval or training??
+  episodic_returns: List[float] = []
+  episodic_performances: List[float] = []
+  # Simulated annealing: decrease the epsilon per episode by 1/nr_episodes.
   if anneal:
     agent.epsilon = 1.0
     eps_unit = 1.0 / number_episodes
+
+  # Record the performance of the agent (run until the time has run out) for 'number_episodes' many episodes.
   for episode in range(number_episodes):
     # Get the initial set of observations from the environment.
     timestep = env.reset()
@@ -66,15 +76,16 @@ def run_loop(agent, env, number_episodes, anneal):
         break
     if anneal:
       agent.epsilon = max(0, agent.epsilon - eps_unit)
+
     if episode % 500 == 0:
       print('Episode', episode)
   return episodic_returns, episodic_performances
 
 
-def run_agent(baseline, dev_measure, dev_fun, discount, value_discount, beta,
-              nonterminal_weight, exact_baseline, anneal, num_episodes,
-              num_episodes_noexp, seed, env_name, noops, movement_reward,
-              goal_reward, side_effect_reward, agent_class):
+def run_agent(baseline: Baseline, dev_measure: DeviationMeasure, dev_fun, discount: float, value_discount: float, beta: float,
+              nonterminal_weight: float, exact_baseline: bool, anneal: bool, num_episodes: int,
+              num_episodes_noexp: int, seed, env_name: str, noops: bool, movement_reward: float,
+              goal_reward: float, side_effect_reward: float, agent_class: QLearning) -> Tuple[List[float], List[float]]:
   """Run agent.
 
   Create an agent with the given parameters for the side effects penalty.
@@ -123,18 +134,22 @@ def run_agent(baseline, dev_measure, dev_fun, discount, value_discount, beta,
                               side_effect_reward=side_effect_reward)
   else:
     baseline_env = None
+    
   agent = agent_class(
       actions=env.action_spec(), baseline=baseline, dev_measure=dev_measure,
       dev_fun=dev_fun, discount=discount, value_discount=value_discount,
       beta=beta, exact_baseline=exact_baseline, baseline_env=baseline_env,
       start_timestep=start_timestep, state_size=state_size,
       nonterminal_weight=nonterminal_weight)
-  returns, performances = run_loop(
-      agent, env, number_episodes=num_episodes, anneal=anneal)
+
+  # Run the agent for 'num_episodes' (with an exploration rate).
+  returns, performances = run_loop(agent, env, number_episodes=num_episodes, anneal=anneal)
+
+  # Run the agent for 'num_episodes_noexp' (without exploration).
   if num_episodes_noexp > 0:
     agent.epsilon = 0
-    returns_noexp, performances_noexp = run_loop(
-        agent, env, number_episodes=num_episodes_noexp, anneal=False)
+    returns_noexp, performances_noexp = run_loop(agent, env, number_episodes=num_episodes_noexp, anneal=False)
     returns.extend(returns_noexp)
     performances.extend(performances_noexp)
+    
   return returns, performances

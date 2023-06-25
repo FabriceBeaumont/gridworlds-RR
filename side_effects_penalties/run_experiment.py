@@ -23,12 +23,23 @@ from absl import flags
 import pandas as pd
 from six.moves import range
 from six.moves import zip
-from side_effects_penalties import agent_with_penalties
-from side_effects_penalties import training
-from side_effects_penalties.file_loading import filename
 
+# ORIGINAL CODE:
+# from side_effects_penalties import agent_with_penalties
+# from side_effects_penalties import training
+# from side_effects_penalties.file_loading import filename
+# REPLACED BY:
+import agent_with_penalties
+import training
+from file_loading import filename
+
+"""This file defines flags for simple console use. 
+  It then executes the 'training.run_agent' method and stores the restuls in 
+  a csv.
+"""
 
 FLAGS = flags.FLAGS
+
 
 if __name__ == '__main__':  # Avoid defining flags when used as a library.
   # Side effects penalty settings

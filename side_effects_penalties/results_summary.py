@@ -26,10 +26,15 @@ import os.path
 from absl import app
 from absl import flags
 import pandas as pd
-from side_effects_penalties.file_loading import load_files
+
+from file_loading import load_files
 
 
 FLAGS = flags.FLAGS
+
+"""Ignore for now. 
+Probably only used to read and visualize the (best) stored results.
+"""
 
 if __name__ == '__main__':  # Avoid defining flags when used as a library.
   flags.DEFINE_string('path', '', 'File path.')
