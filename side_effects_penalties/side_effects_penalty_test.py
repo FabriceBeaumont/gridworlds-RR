@@ -22,9 +22,10 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import numpy as np
 from six.moves import range
-from side_effects_penalties import side_effects_penalty
-from side_effects_penalties import training
-from side_effects_penalties.side_effects_penalty import Actions
+
+import side_effects_penalty
+import training
+from side_effects_penalty import Actions
 
 
 environments = ['box', 'vase', 'sushi_goal']

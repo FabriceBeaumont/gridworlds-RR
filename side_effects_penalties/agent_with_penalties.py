@@ -20,10 +20,6 @@ from __future__ import print_function
 
 import numpy as np
 
-# ORIGINAL CODE:
-# from side_effects_penalties import agent
-# from side_effects_penalties import side_effects_penalty as sep
-# REPLACED BY:
 import agent
 import side_effects_penalty as sep
 

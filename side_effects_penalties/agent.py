@@ -18,6 +18,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+from typing import Tuple, Any, Optional, Set, Dict
+
 import collections
 from collections import abc
 import numpy as np
@@ -109,13 +111,13 @@ class QLearning(object):
   def step(self, timestep):
     """Perform a single step in the environment."""
     # Get state observations.
-    state = self._timestep_to_state(timestep)
+    state: Tuple = self._timestep_to_state(timestep)
 
     # This is one of the follow up states (i.e. not the initial state).
     if self._current_state is not None:
       self._update(timestep, state)
 
-    self._current_state = state
+    self._current_state: Tuple = state
     # Determine action.
     self._current_action = self._policy.get_action(self.epsilon, state)
     # Emit action.
