@@ -22,8 +22,8 @@ from __future__ import print_function
 from absl.testing import absltest
 from absl.testing import parameterized
 
-from ai_safety_gridworlds.environments import island_navigation
-from ai_safety_gridworlds.environments.shared.safety_game import Actions
+from environments import island_navigation
+from environments.shared.safety_game import Actions
 
 import numpy as np
 

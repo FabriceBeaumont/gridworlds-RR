@@ -51,7 +51,7 @@ from __future__ import print_function
 
 import collections
 
-from ai_safety_gridworlds.environments.shared.safety_game import Actions
+from environments.shared.safety_game import Actions
 
 
 # Demonstration data is stored as a named tuple.

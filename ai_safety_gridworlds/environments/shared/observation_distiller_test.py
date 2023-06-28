@@ -21,8 +21,8 @@ from __future__ import print_function
 # Dependency imports
 from absl.testing import absltest
 
-from ai_safety_gridworlds.environments import safe_interruptibility as _safe_interruptibility
-from ai_safety_gridworlds.environments.shared import observation_distiller
+from environments import safe_interruptibility as _safe_interruptibility
+from environments.shared import observation_distiller
 
 import numpy as np
 

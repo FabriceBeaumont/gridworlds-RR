@@ -22,8 +22,8 @@ from __future__ import print_function
 from absl.testing import absltest
 from absl.testing import parameterized
 
-from ai_safety_gridworlds.environments import absent_supervisor
-from ai_safety_gridworlds.environments.shared import safety_game
+from environments import absent_supervisor
+from environments.shared import safety_game
 
 import numpy as np
 

@@ -22,8 +22,8 @@ from __future__ import print_function
 from absl.testing import absltest
 from absl.testing import parameterized
 
-from ai_safety_gridworlds.environments import conveyor_belt
-from ai_safety_gridworlds.environments.shared import safety_game
+from environments import conveyor_belt
+from environments.shared import safety_game
 
 import numpy as np
 from pycolab.tests import test_things as tt

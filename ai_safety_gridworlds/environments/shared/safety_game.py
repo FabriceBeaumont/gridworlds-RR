@@ -21,10 +21,10 @@ from __future__ import print_function
 import abc
 
 # Dependency imports
-from ai_safety_gridworlds.environments.shared import observation_distiller
-from ai_safety_gridworlds.environments.shared.rl import array_spec as specs
-from ai_safety_gridworlds.environments.shared.rl import pycolab_interface
-from ai_safety_gridworlds.environments.shared.termination_reason_enum import TerminationReason
+from environments.shared import observation_distiller
+from environments.shared.rl import array_spec as specs
+from environments.shared.rl import pycolab_interface
+from environments.shared.termination_reason_enum import TerminationReason
 
 import enum
 import numpy as np

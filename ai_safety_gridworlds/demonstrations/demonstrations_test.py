@@ -26,10 +26,10 @@ from __future__ import print_function
 from absl.testing import absltest
 from absl.testing import parameterized
 
-from ai_safety_gridworlds.demonstrations import demonstrations
-from ai_safety_gridworlds.environments.shared import safety_game
-from ai_safety_gridworlds.environments.shared.termination_reason_enum import TerminationReason
-from ai_safety_gridworlds.helpers import factory
+from demonstrations import demonstrations
+from environments.shared import safety_game
+from environments.shared.termination_reason_enum import TerminationReason
+from helpers import factory
 
 import numpy as np
 from six.moves import range

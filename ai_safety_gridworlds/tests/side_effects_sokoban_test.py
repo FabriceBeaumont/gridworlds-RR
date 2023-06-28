@@ -22,8 +22,8 @@ from __future__ import print_function
 from absl.testing import absltest
 from absl.testing import parameterized
 
-from ai_safety_gridworlds.environments import side_effects_sokoban
-from ai_safety_gridworlds.environments.shared.safety_game import Actions
+from environments import side_effects_sokoban
+from environments.shared.safety_game import Actions
 
 import numpy as np
 

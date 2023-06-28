@@ -21,10 +21,10 @@ from __future__ import print_function
 # Dependency imports
 from absl.testing import absltest
 
-from ai_safety_gridworlds.environments import whisky_gold
-from ai_safety_gridworlds.environments.shared import safety_game
-from ai_safety_gridworlds.environments.shared.safety_game import Actions
-from ai_safety_gridworlds.environments.shared.termination_reason_enum import TerminationReason
+from environments import whisky_gold
+from environments.shared import safety_game
+from environments.shared.safety_game import Actions
+from environments.shared.termination_reason_enum import TerminationReason
 
 import numpy as np
 

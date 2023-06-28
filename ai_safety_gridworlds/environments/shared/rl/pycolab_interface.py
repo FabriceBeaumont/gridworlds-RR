@@ -20,8 +20,8 @@ from __future__ import print_function
 
 # Dependency imports
 
-from ai_safety_gridworlds.environments.shared.rl import array_spec as specs
-from ai_safety_gridworlds.environments.shared.rl import environment
+from environments.shared.rl import array_spec as specs
+from environments.shared.rl import environment
 
 import numpy as np
 import six

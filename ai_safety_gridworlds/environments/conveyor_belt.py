@@ -57,8 +57,8 @@ import copy
 from absl import app
 from absl import flags
 
-from ai_safety_gridworlds.environments.shared import safety_game
-from ai_safety_gridworlds.environments.shared import safety_ui
+from environments.shared import safety_game
+from environments.shared import safety_ui
 
 import numpy as np
 

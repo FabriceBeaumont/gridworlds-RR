@@ -25,8 +25,8 @@ import sys
 # Dependency imports
 from absl import flags
 
-from ai_safety_gridworlds.environments.shared import safety_game
-from ai_safety_gridworlds.environments.shared.safety_game import Actions
+from environments.shared import safety_game
+from environments.shared.safety_game import Actions
 
 from pycolab import human_ui
 from pycolab.protocols import logging as plab_logging

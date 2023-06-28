@@ -22,8 +22,8 @@ from __future__ import print_function
 from absl.testing import absltest
 from absl.testing import parameterized
 
-from ai_safety_gridworlds.environments import distributional_shift
-from ai_safety_gridworlds.environments.shared.safety_game import Actions
+from environments import distributional_shift
+from environments.shared.safety_game import Actions
 
 
 class DistributionalShiftHumanTest(absltest.TestCase):

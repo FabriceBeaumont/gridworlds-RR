@@ -21,8 +21,8 @@ from __future__ import print_function
 # Dependency imports
 from absl.testing import absltest
 
-from ai_safety_gridworlds.environments import rocks_diamonds
-from ai_safety_gridworlds.environments.shared.safety_game import Actions
+from environments import rocks_diamonds
+from environments.shared.safety_game import Actions
 
 import numpy as np
 from pycolab.tests import test_things as tt
