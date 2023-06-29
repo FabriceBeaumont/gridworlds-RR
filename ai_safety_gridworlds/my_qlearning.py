@@ -66,7 +66,7 @@ def preprocessing_explore_all_states(env, action_space: List[int], env_name: str
         # (Otherwise reaching a state with inefficient steps prohibits further realistic exploration).
         if last_needed_nr_steps is None or last_needed_nr_steps > len(actions_so_far):
             states_steps_dict[board_str] = len(actions_so_far)
-            states_actions_dict[board_str] = np.array(actions_so_far) # DEBUGGING DATA
+            states_actions_dict[board_str] = np.array(actions_so_far)                           # DEBUGGING DATA
             
             if not (len(states_steps_dict.keys()) % 50): print(f"\rExplored {len(states_steps_dict.keys())} states.", end="")
             # print(board_str, end="\n\n") # TODO: DELETE
