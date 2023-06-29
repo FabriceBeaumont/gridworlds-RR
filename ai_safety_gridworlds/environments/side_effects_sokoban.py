@@ -39,8 +39,7 @@ import copy
 from absl import app
 from absl import flags
 
-from environments.shared import safety_game
-from environments.shared import safety_ui
+from environments.shared import safety_game, safety_ui
 
 import numpy as np
 
@@ -50,7 +49,7 @@ from pycolab import rendering
 FLAGS = flags.FLAGS
 
 if __name__ == '__main__':  # Avoid defining flags when used as a library.
-  flags.DEFINE_integer('level', 0, 'Which game level to play.')
+  flags.DEFINE_integer('level', 2, 'Which game level to play.')
   flags.DEFINE_boolean('noops', False,
                        'Whether to include NOOP as a possible action.')
   flags.DEFINE_integer('movement_reward', -1, 'Movement reward.')

@@ -8,9 +8,18 @@ from datetime import timedelta, datetime
 
 import matplotlib.pyplot as plt
 import plotly.express as px
+from enum import Enum
 
-
-MAX_NR_ACTIONS: int = 50
+ACTIONS: Dict[int, str] = {
+    0: "Up",
+    1: "Down",
+    2: "Left",
+    3: "Right",
+    4: "NOOP"
+}
+    
+MAX_NR_ACTIONS: int = 100
+MAX_NR_ACTIONS_LEARN: int = MAX_NR_ACTIONS - 60
 
 def _smooth(values, window=100):
   return values.rolling(window,).mean()
@@ -24,112 +33,102 @@ def add_smoothed_data(df, window=100):
   return temp
 
 
-# Todo: figure out hot to plot envs
+def print_actions_list(actions: List[int]) -> None:
+    for a in actions:
+        print(f"{ACTIONS[a]}, ", end="")
+
+    print()
+
+def print_states_dict(states_dict: Dict[str, int]) -> None:
+    for s, nr in states_dict.items():
+        print(f"{s} \tNr:{nr}")
+
+# Todo: figure out how to plot envs
 # f, ax = plt.subplots()
 # ax.imshow(np.moveaxis(timestep.observation['RGB'], 0, -1), animated=False)
 # plt.show()
 
-# TODO: Remove this?
-def run_experiment(env_name: str = 'side_effects_sokoban'):
-    # Hyperparameters.
-    alpha: float = 0.5
-    gamma: float = 0.6
-    epsilon: float = 0.1
-    episodes:int = 50000
 
-    # Initialize environment.
-    env = factory.get_environment_obj(env_name, noops=True)
-    action_space = env.action_spec()    # TODO: Type BoundedArraySpec
+def preprocessing_explore_all_states(env, action_space: List[int], env_name: str, allow_loading_and_saving: bool = True) -> Dict[str, int]:
 
-    obs_space: Dict = env.observation_spec() # TODO: Convert or use as pandas df??
-
-    # In gridworlds the state space can be a tuple (height, width) or (height, width, channels).
-    # Depending on the state representation. Here we assume a simple (height, width) representation.
-    grid_height, grid_width = obs_space["board"].shape
-
-    # Initialize Q-table with zeros.
-    Q_table = np.zeros((grid_height, grid_width, action_space.maximum.max()+1))
-
-    # TODO: CONTINUE
-    for i_episode in range(episodes):
-        # Reset the environment.
-        state = env.reset()
-
-        for t in range(100):
-            # Choose action. Either explore randomly or exploit knowledge from Q-table.
-            if np.random.uniform(0, 1) < epsilon:
-                # Explore.
-                action = action_space.sample()
-            else:
-                # Exploit.
-                action = np.argmax(Q_table[state])
-
-            # Take the action
-            next_state, reward, done, info = env.step(action)
-
-            # Update Q-table
-            old_value = Q_table[state + (action,)]
-            next_max = np.max(Q_table[next_state])
-
-            new_value = (1 - alpha) * old_value + alpha * (reward + gamma * next_max)
-            Q_table[state + (action,)] = new_value
-
-            state = next_state
-
-            if done:
-                break
-
-
-def preprocessing_explore_all_states(env, action_space: List[int], env_name: str) -> Dict[str, int]:
+    # - state known > NO FURTHER EXPLORATION
+    # - long way to state - no steps left
+    # - SHORT way to state ===>> NOT FURTHER EXPLORATION!!! 
     
     # Visit all possible states.
-    def explore(env, timestep, actions_so_far: List[int]=[]):        
+    def explore(env, timestep, states_steps_dict: Dict[str, int], actions_so_far: List[int]=[]) -> Dict[str, int]:
+        # NOTE: Running n-times against the wall and that the n+1 state the env changes. The exploration is greedy for NEW states.
         board_str: str = str(timestep.observation['board'])
-        
-        if board_str not in states_set:
-            states_set.add(board_str)
-            if not (len(states_set) % 50): print(f"\rExplored {len(states_set)} states.", end="")
-            # print(board_str, end="\n\n")
 
-            # if not timestep.last():                             # timestep = env.step(action)
-            if not env._game_over and len(actions_so_far) < MAX_NR_ACTIONS:
+        last_needed_nr_steps: int = states_steps_dict.get(board_str)
+        # Continue, if the state is new (e.a. if the dictionary-get returned None).
+        # Continue AS WELL, if the state is not new, but has now been reached with fewer steps!
+        # (Otherwise reaching a state with inefficient steps prohibits further realistic exploration).
+        if last_needed_nr_steps is None or last_needed_nr_steps > len(actions_so_far):
+            states_steps_dict[board_str] = len(actions_so_far)
+            states_actions_dict[board_str] = np.array(actions_so_far) # DEBUGGING DATA
+            
+            if not (len(states_steps_dict.keys()) % 50): print(f"\rExplored {len(states_steps_dict.keys())} states.", end="")
+            # print(board_str, end="\n\n") # TODO: DELETE
+
+            # if not env._game_over and len(actions_so_far) < MAX_NR_ACTIONS:
+            if not timestep.last() and len(actions_so_far) < MAX_NR_ACTIONS:
                 for action in action_space:
                     # Explore all possible steps, after taking the current chosen action.
                     timestep = env.step(action)
-                    explore(env, timestep, actions_so_far + [action])
-                    # After the depth exploration, reset the environment.
+                    states_steps_dict = explore(env, timestep, states_steps_dict, actions_so_far + [action])
+                    # After the depth exploration, reset the environment, since it is probably changed in the recursion.
                     timestep = env.reset()
-                    # For the continuation of the for-loop, execute the 'steps so far' agin.
+                    # Redo the action to have the same environment as before the recursion call.
                     for action in actions_so_far:
-                        if timestep.last():
-                            break
                         timestep = env.step(action)
+        return states_steps_dict
 
     # If the states have been computed before, load them from file.
     file_dir: str = "AllStates"
     if not os.path.exists(file_dir): os.mkdir(file_dir)
     filenname_states: str   = f"{file_dir}/states_{env_name}.npy"
     filenname_runtime: str  = f"{file_dir}/states_{env_name}_rt.npy"
-    
-    if os.path.exists(filenname_states):
+
+    # DEBUGGING DATA:
+    # Dict[id, str] - States backwards.
+    filenname_states_reverse: str   = f"{file_dir}/states_{env_name}_id_str.npy"        # DEBUGGING DATA:
+    # Dict[str, actions_list:np.array].    
+    filenname_actions: str   = f"{file_dir}/actions_{env_name}.npy"                     # DEBUGGING DATA:
+        
+    if os.path.exists(filenname_states) and allow_loading_and_saving:
         structured_array = np.load(filenname_states, allow_pickle=True)
         runtime = np.load(filenname_runtime, allow_pickle=True)
-        return structured_array.item()
+
+        #TODO: Uncomment if initialization was complete
+        int_states_dict = None #np.load(filenname_states_reverse)                        # DEBUGGING DATA:
+        states_actions_dict = None #np.load(filenname_actions)                           # DEBUGGING DATA:
+        
+        return structured_array.item(), int_states_dict, states_actions_dict
     else:
         timestep = env.reset()
-        states_set: Set = set()
+        states_steps_dict: Dict[str, int] = dict()
+        states_actions_dict: Dict[str, np.array] = dict()                               # DEBUGGING DATA:
 
-        start_time = time.time()
-        explore(env, timestep)
+        start_time = time.time()        
+        states_steps_dict = explore(env, timestep, states_steps_dict)
         end_time = time.time()
+        states_set: Set = set(states_steps_dict.keys())
         elapsed_sec = end_time - start_time
                 
-        states_int_dict: Dict[str, int] = dict(zip(states_set, range(len(states_set))))
+        states_int_dict: Dict[str, int] = dict(zip(states_set, range(len(states_set)))) # DEBUGGING DATA:
+        int_states_dict: Dict[str, int] = dict(zip(range(len(states_set)), states_set)) # DEBUGGING DATA:
+        
         env.reset()
-        print(f"\rExplored {len(states_set)} states, in {timedelta(seconds=elapsed_sec)} seconds", end="")  # Expect > 6000        
-        np.save(filenname_runtime, elapsed_sec)
-        np.save(filenname_states, states_int_dict)
-        return states_int_dict
+        print(f"\rExplored {len(states_set)} states, in {timedelta(seconds=elapsed_sec)} seconds", end="")
+        if allow_loading_and_saving:
+            np.save(filenname_runtime, elapsed_sec)
+            np.save(filenname_states, states_int_dict)
+            
+            np.save(filenname_states_reverse, int_states_dict)                          # DEBUGGING DATA:
+            np.save(filenname_actions, states_actions_dict)                             # DEBUGGING DATA:
+            
+        return states_int_dict, int_states_dict, states_actions_dict
 
 
 def env_loader(env_name) -> Tuple:
@@ -142,11 +141,16 @@ def env_loader(env_name) -> Tuple:
     action_space: List[int] = list(range(env.action_spec().minimum, env.action_spec().maximum + 1))
     # Explore all states (brute force) or load them from file if this has been done previously.
     print("Explore or load set of all states", end="")
-    states_dict: Dict[str, int] = preprocessing_explore_all_states(env, action_space, env_name)
-    print(f" (#{len(states_dict)})")
-    return env, action_space, states_dict
+    a, i, s = preprocessing_explore_all_states(env, action_space, env_name, allow_loading_and_saving=False)
+    states_dict: Dict[str, int] = a
+    int_states_dict: Dict[int, str] = i                                                 # DEBUGGING DATA:
+    states_actions_dict: Dict[str, np.array] = s                                        # DEBUGGING DATA:
+    # for s in states_dict.keys():
+    #     print(f"{s}\n\n")    
+    print(f" (#{len(states_dict)}, using {MAX_NR_ACTIONS} steps)")
+    return env, action_space, states_dict, int_states_dict, states_actions_dict
 
-# Finished verion 1:
+# Work in progress:
 def run_q_learning(env_name='sokocoin2', nr_episodes: int = 9000, seed: int = 42):
 
     def get_best_action(q_table: np.array, state_id: int) -> int:
@@ -181,12 +185,9 @@ def run_q_learning(env_name='sokocoin2', nr_episodes: int = 9000, seed: int = 42
         results_df = pd.DataFrame(d) 
         results_df_1 = add_smoothed_data(results_df)    
         results_df_1.to_csv(filenname_performance)
-
-
         
         # Create line graph using Plotly Express.
         # TODO: Smooth weg.
-        # TODO: Check qtable. All zero???
         cols_to_standardize = ['reward', 'performance', 'loss']
         results_df[cols_to_standardize] = results_df[cols_to_standardize].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
         fig = px.line(results_df, x='episode', y=['reward', 'performance', 'loss'], title=f"Performances - {env_name}")
@@ -206,7 +207,7 @@ def run_q_learning(env_name='sokocoin2', nr_episodes: int = 9000, seed: int = 42
         return filenname_qtable, filenname_performance
 
     # Load the environment.
-    env, action_space, states_dict = env_loader(env_name)    
+    env, action_space, states_dict, int_states_dict, states_actions_dict = env_loader(env_name)    
     np.random.seed(seed)
     
     # TODO NEXT TASK: Adapt the q-learning to RR
@@ -214,8 +215,10 @@ def run_q_learning(env_name='sokocoin2', nr_episodes: int = 9000, seed: int = 42
     # Get an environment for the simulation of the baseline state.
     # baseline_env = env = factory.get_environment_obj('side_effects_sokoban', noops=True, movement_reward=movement_reward, goal_reward=goal_reward, wall_reward=side_effect_reward, corner_reward=side_effect_reward, level=env_name_lvl_dict[env_name])
 
-    # Initialize the agent:    
-    alpha: float = 0.1
+    # Initialize the agent:
+    # Learning rate (alpha).
+    learning_rate: float = 1. # 0.1
+    # Initialization value of the q-learning q-table.
     q_init_value: float = 0.0
     # Time discount/ costs for each time step. Aka 'gamma'.
     discount: float = 0.99
@@ -245,13 +248,17 @@ def run_q_learning(env_name='sokocoin2', nr_episodes: int = 9000, seed: int = 42
     # Run training.
     # Record the performance of the agent (run until the time has run out) for 'number_episodes' many episodes.
     for episode in range(nr_episodes):
-        if not(episode % (nr_episodes//loss_frequency)): print(f"\rQ-Learning episode {episode}/{nr_episodes} ({round(episode/nr_episodes *100, 0)}%).", end="")
+        if not(episode % (nr_episodes//loss_frequency)): print(f"\rQ-Learning episode {episode}/{nr_episodes} ({round(episode//nr_episodes *100)}%).", end="")
         # Get the initial set of observations from the environment.
         timestep = env.reset()
         # Reset the variables for each episode.
+        _current_state: str = ""
+        _last_state: str = ""
         _last_state_id: int = None
+        _last_state: int = None
         _last_action: int   = None
         _nr_actions_so_far: int = 0
+        _actions_so_far: List[int] = []
         _accumulated_loss: float = 0.        
         
         exploration_epsilon: float = exploration_epsilons[episode]
@@ -259,11 +266,15 @@ def run_q_learning(env_name='sokocoin2', nr_episodes: int = 9000, seed: int = 42
         while True:
             # Perform a step.
             try:
-                state_id: int = states_dict[str(timestep.observation['board'])]
+                _current_state: str = str(timestep.observation['board'])
+                state_id: int = states_dict[_current_state]
             except KeyError as e:
                 error_message = f"PRE-PROCESSING WAS INCOMPLETE: Agent encountered a state during q-learning (in episode {episode}/{nr_episodes}), which was not explored in the preprocessing!"
                 print(error_message)
                 print(f"'Unknown' state:\n{str(timestep.observation['board'])}")
+                print_actions_list(_actions_so_far)
+                print(f"Previous state:\n{_last_state}")
+                print_states_dict(states_dict)
                
             # If this is NOT the initial state, update the q-values.
             # If this was the initial state, we do not have any reference q-values for states/actions before, and thus cannot update anything.
@@ -274,7 +285,7 @@ def run_q_learning(env_name='sokocoin2', nr_episodes: int = 9000, seed: int = 42
                 # Calculate the q-value delta.
                 delta = (reward + discount * q_table[state_id, max_action] - q_table[_last_state_id, _last_action])
                 # Update the q-values.
-                q_table[_last_state_id, _last_action] += alpha * delta
+                q_table[_last_state_id, _last_action] += learning_rate * delta
 
                 # We define the loss as the 'squared temporal difference error'. In this case the delta^2.
                 # Accumulate the squared delta for 'loss_frequency' many uniformly-selected episodes.
@@ -282,7 +293,7 @@ def run_q_learning(env_name='sokocoin2', nr_episodes: int = 9000, seed: int = 42
                     _accumulated_loss += delta**2
             
             # Break condition: If this was the last action, update the q-values for the terminal state one last time.            
-            break_condition: bool = timestep.last() or _nr_actions_so_far < MAX_NR_ACTIONS
+            break_condition: bool = timestep.last() or _nr_actions_so_far >= MAX_NR_ACTIONS_LEARN
             if break_condition:
                 # Before ending this episode, save the returns and performances.
                 if not(episode % (nr_episodes//loss_frequency)):
@@ -297,8 +308,10 @@ def run_q_learning(env_name='sokocoin2', nr_episodes: int = 9000, seed: int = 42
                 action: int = greedy_policy_action(exploration_epsilon, state_id, action_space, q_table)
                 timestep = env.step(action)            
                 _nr_actions_so_far += 1
+                _actions_so_far.append(action)
 
             # Update the floop-variables.
+            _last_state: str = _current_state            
             _last_state_id: int = state_id
             _last_action: int   = action
 
