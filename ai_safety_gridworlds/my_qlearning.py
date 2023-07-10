@@ -10,6 +10,9 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 from enum import Enum
 
+import multiprocessing
+from functools import partial
+
 class Baselines(Enum):
     STARTING_STATE_BASELINE: str    = "starting"
     INACTION_BASELINE: str          = "inaction"
@@ -48,6 +51,9 @@ def print_states_dict(states_dict: Dict[str, int]) -> None:
     for s, nr in states_dict.items():
         print(f"{s} \tNr:{nr}")
 
+
+# TODO: Extract parameters & settings
+# TODO: Visualize results
 # Todo: figure out how to plot envs
 # f, ax = plt.subplots()
 # ax.imshow(np.moveaxis(timestep.observation['RGB'], 0, -1), animated=False)
@@ -74,7 +80,6 @@ def preprocessing_explore_all_states(env, action_space: List[int], env_name: str
             states_actions_dict[board_str] = np.array(actions_so_far, dtype=int)                           # DEBUGGING DATA
             
             if not (len(states_steps_dict.keys()) % 50): print(f"\rExplored {len(states_steps_dict.keys())} states.", end="")
-            # print(board_str, end="\n\n") # TODO: DELETE
 
             # if not env._game_over and len(actions_so_far) < MAX_NR_ACTIONS:
             if not timestep.last() and len(actions_so_far) < MAX_NR_ACTIONS:
@@ -136,7 +141,7 @@ def preprocessing_explore_all_states(env, action_space: List[int], env_name: str
         return states_int_dict, int_states_dict, states_actions_dict
 
 
-def env_loader(env_name) -> Tuple:
+def env_loader(env_name, verbose: bool=False) -> Tuple:
     # Get environment.
     env_name_lvl_dict = {'sokocoin2': 2, 'sokocoin3': 3}
     # env_name_size_dict  = {'sokocoin2': 72, 'sokocoin3': 100}; state_size = env_name_size_dict[env_name]
@@ -145,14 +150,15 @@ def env_loader(env_name) -> Tuple:
     # Construct the action space.
     action_space: List[int] = list(range(env.action_spec().minimum, env.action_spec().maximum + 1))
     # Explore all states (brute force) or load them from file if this has been done previously.
-    print("Explore or load set of all states.", end="")
+    if verbose:
+        print("Explore or load set of all states.", end="")
     a, i, s = preprocessing_explore_all_states(env, action_space, env_name, allow_loading_and_saving=True)
     states_dict: Dict[str, int] = a
     int_states_dict: Dict[int, str] = i                                                 # DEBUGGING DATA:
     states_actions_dict: Dict[str, np.array] = s                                        # DEBUGGING DATA:
-    # for s in states_dict.keys():
-    #     print(f"{s}\n\n")    
-    print(f" (#{len(states_dict)} states, using {MAX_NR_ACTIONS} steps)")
+    
+    if verbose:
+        print(f" (#{len(states_dict)} states, using {MAX_NR_ACTIONS} steps)")
     return env, action_space, states_dict, int_states_dict, states_actions_dict
 
 # Q-Learning implementation
@@ -192,7 +198,6 @@ def run_q_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq:
         results_df_1.to_csv(filenname_performance)
         
         # Create line graph using Plotly Express.
-        # TODO: Smooth weg.
         cols_to_standardize = ['reward', 'performance', 'loss']
         results_df[cols_to_standardize] = results_df[cols_to_standardize].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
         fig = px.line(results_df, x='episode', y=['reward', 'performance', 'loss'], title=f"Performances - {env_name}")
@@ -212,14 +217,9 @@ def run_q_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq:
         return filenname_qtable, filenname_performance
 
     # Load the environment.
-    env, action_space, states_dict, int_states_dict, states_actions_dict = env_loader(env_name)    
+    env, action_space, states_dict, int_states_dict, states_actions_dict = env_loader(env_name, verbose=True)
     np.random.seed(seed)
     
-    # TODO NEXT TASK: Adapt the q-learning to RR
-    # TODO: Probably only needed next for the baseline simulation.
-    # Get an environment for the simulation of the baseline state.
-    # baseline_env = env = factory.get_environment_obj('side_effects_sokoban', noops=True, movement_reward=movement_reward, goal_reward=goal_reward, wall_reward=side_effect_reward, corner_reward=side_effect_reward, level=env_name_lvl_dict[env_name])
-
     # Initialize the agent:
     # Learning rate (alpha).
     learning_rate: float = 1. # 0.1
@@ -253,13 +253,17 @@ def run_q_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq:
     _last_state_id: int = None
     _last_action: int   = None
     _last_episode_start_time: float = time.time()
+    _all_episodes_rt_sum: float = 0.
 
     # Run training.
     # Record the performance of the agent (run until the time has run out) for 'number_episodes' many episodes.
     for episode in range(nr_episodes):
         if not(episode % (nr_episodes//100)): 
-            _last_episode_duration_time = time.time() - _last_episode_start_time
-            rt_estimation_str: str = f"(Took {_last_episode_duration_time} - Estimated runtime: {_last_episode_duration_time * (nr_episodes-episode)})"
+            rt_estimation_str: str = ''
+            if episode > 0:
+                _all_episodes_rt_sum += round(time.time() - _last_episode_start_time, 3)
+                _expected_rt = round((_all_episodes_rt_sum / episode) * (nr_episodes - episode), 0)
+                rt_estimation_str = f"(Avg. runtime so far {timedelta(seconds=_all_episodes_rt_sum)} - Estimated runtime: {timedelta(seconds=_expected_rt)}"
             print(f"\rQ-Learning episode {episode}/{nr_episodes} ({round(episode/nr_episodes *100)}%). {rt_estimation_str}", end="")
         _last_episode_start_time = time.time()
         # Get the initial set of observations from the environment.
@@ -331,9 +335,6 @@ def run_q_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq:
 
     save_results_to_file(q_table, losses, episodic_returns, episodic_performances, evaluated_episodes, seed)
 
-    # TODO: Extract parameters & settings
-    # TODO: Visualize results
-    # TODO: Script to read in constructed q-table - and execute according to it.
     return episodic_returns, episodic_performances
 
 # RR-Learning implementation
@@ -374,7 +375,6 @@ def run_rr_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq
         results_df_1.to_csv(filenname_performance)
         
         # Create line graph using Plotly Express.
-        # TODO: Smooth weg.
         cols_to_standardize = ['reward', 'performance', 'loss']
         results_df[cols_to_standardize] = results_df[cols_to_standardize].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
         fig = px.line(results_df, x='episode', y=['reward', 'performance', 'loss'], title=f"Performances - {env_name}")
@@ -393,15 +393,32 @@ def run_rr_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq
 
         return filenname_qtable, filenname_performance
 
+    def get_the_baseline_state_id(_actions_so_far_ctr: int, _previous_baseline_id: int, _actions_so_far: List[int] = None) -> int:        
+        # For the starting state baseline, nothing has to be computed. It is already set.
+        if baseline_setting == Baselines.STARTING_STATE_BASELINE:
+            _baseline_state_id = _previous_baseline_id
+
+        # For the inaction baseline, get the already simulated state after '_actions_so_far_ctr' many inactions.
+        if baseline_setting == Baselines.INACTION_BASELINE:
+            _baseline_state_id = inaction_baseline_states[_actions_so_far_ctr - 1]
+
+        # For the stepwise inaction baseline, simulate doing the actions as before, but choosing the NOOP action for the last step.
+        if baseline_setting == Baselines.STEPWISE_INACTION_BASELINE:                    
+            # Up to the last time step, simulate the environment as before.
+            env_simulation, _, _, _, _ = env_loader(env_name)
+            for a in _actions_so_far[:1]:                        
+                env_simulation.step(a)
+            # But for the last time step perform the NOOP action.
+            timestep = env_simulation.step(action_space[4])
+            _baseline_state = str(timestep.observation['board'])
+            _baseline_state_id: int = states_dict[_baseline_state]
+
+        return _baseline_state_id
+    
     # Load the environment.
-    env, action_space, states_dict, int_states_dict, states_actions_dict = env_loader(env_name)    
+    env, action_space, states_dict, int_states_dict, states_actions_dict = env_loader(env_name, verbose=True)
     np.random.seed(seed)
     
-    # TODO NEXT TASK: Adapt the q-learning to RR
-    # TODO: Probably only needed next for the baseline simulation.
-    # Get an environment for the simulation of the baseline state.
-    # baseline_env = env = factory.get_environment_obj('side_effects_sokoban', noops=True, movement_reward=movement_reward, goal_reward=goal_reward, wall_reward=side_effect_reward, corner_reward=side_effect_reward, level=env_name_lvl_dict[env_name])
-
     # Initialize the agent:
     # Learning rate (alpha).
     learning_rate: float = 1. # 0.1
@@ -416,7 +433,7 @@ def run_rr_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq
     q_table: np.array = q_init_value * np.ones((len(states_dict), len(action_space)), dtype=float)
     # Store the coverage values (reachability). 
     # Entrz 'ij' gives the coverage of state 'j' when starting from state 'i'. ({From_states}x{To_states})
-    coverage_table: np.array = np.eye((len(states_dict), len(states_dict)), dtype=float)
+    coverage_table: np.array = np.eye(len(states_dict), dtype=float)
 
     # Initialize datastructures for the evaluation.
     # Every 'nr_episodes/loss_frequency' episode, save the last episodic returns and performance, and the accumulated loss.
@@ -445,25 +462,28 @@ def run_rr_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq
     timestep = env.reset()
     inaction_baseline_states: np.array = None
     if baseline_setting == Baselines.INACTION_BASELINE:
+        print(f"Initializing all inaction baseline states by simulating the environment when using the noop-action only (for at most {MAX_NR_ACTIONS} steps)...", end="")
         tmp_states_ids_lst: List[int] = []
-        _actions_ctr: int = 0        
-        break_condition: bool = timestep.last() or _actions_ctr >= MAX_NR_ACTIONS
+        _actions_ctr: int = 0
         # Until no more steps left or the environment terminates, perform the noop-action and save the occurring states.
-        while break_condition:
-            timestep = env.step(action_space(4))
+        while not timestep.last() and _actions_ctr <= MAX_NR_ACTIONS:
+            timestep = env.step(action_space[4])
             tmp_states_ids_lst.append(states_dict[str(timestep.observation['board'])])
             _actions_ctr += 1
 
         inaction_baseline_states: np.array = np.array(tmp_states_ids_lst, dtype=int)
-        
+        print("Completed!")
     timestep = env.reset()
     
     # Run training.
     # Record the performance of the agent (run until the time has run out) for 'number_episodes' many episodes.
     for episode in range(nr_episodes):
         if not(episode % (nr_episodes//100)): 
-            _last_episode_duration_time = time.time() - _last_episode_start_time
-            rt_estimation_str: str = f"(Took {_last_episode_duration_time} - Estimated runtime: {_last_episode_duration_time * (nr_episodes-episode)})"
+            rt_estimation_str: str = ''
+            if episode > 0:
+                _last_episode_rt = time.time() - _last_episode_start_time
+                _expected_rt = _last_episode_rt * episode
+                rt_estimation_str = f"(Took {timedelta(seconds=_last_episode_rt)} - Estimated runtime: {timedelta(seconds=_expected_rt)}"
             print(f"\rQ-Learning episode {episode}/{nr_episodes} ({round(episode/nr_episodes *100)}%). {rt_estimation_str}", end="")
         _last_episode_start_time = time.time()
         # Get the initial set of observations from the environment.
@@ -484,18 +504,9 @@ def run_rr_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq
 
         while True:
             # Perform a step.
-            try:
+            try:    
                 _current_state: str = str(timestep.observation['board'])
                 _current_state_id: int = states_dict[_current_state]
-
-                if _actions_so_far_ctr == 0 and baseline_setting == Baselines.STARTING_STATE_BASELINE:
-                    _baseline_state_id = _current_state_id
-
-                if baseline_setting == Baselines.INACTION_BASELINE:
-                    _baseline_state_id = inaction_baseline_states[_actions_so_far_ctr]
-
-                # TODO: baseline stepwise-inaction
-                # TODO: TEST THIS BASELINE STUFF, RR computation and coverage updates.
                                 
             except KeyError as e:
                 error_message = f"PRE-PROCESSING WAS INCOMPLETE: Agent encountered a state during q-learning (in episode {episode}/{nr_episodes}), which was not explored in the preprocessing!"
@@ -504,10 +515,17 @@ def run_rr_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq
                 print_actions_list(_actions_so_far)
                 print(f"Previous state:\n{_last_state}")
                 print_states_dict(states_dict)
-               
+
+            # If this is the initial state, save its id as baseline.
+            # Thus by default the starting state basline is set. If another baseline-setting is used, it will be overwritten anyways.
+            # Note that in this case, we do not have any reference q-values for states/actions before, and thus cannot update anything.
+            if _last_state_id is None:
+                _baseline_state_id = _current_state_id
             # If this is NOT the initial state, update the q-values.
-            # If this was the initial state, we do not have any reference q-values for states/actions before, and thus cannot update anything.
-            if _last_state_id is not None:
+            else:
+                # TODO: TEST THIS BASELINE STUFF, RR computation and coverage updates.                
+                _baseline_state_id = get_the_baseline_state_id(_actions_so_far_ctr, _baseline_state_id, _actions_so_far)
+                
                 # UPDATE REACHABILITIES.
                 # Calculate the coverage delta. 'alpha * [c_discount + V(s_old) - V(s_new)]'
                 c_delta = c_discount + coverage_table[:, _last_state_id] - coverage_table[:, _current_state_id]
@@ -535,7 +553,7 @@ def run_rr_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq
                 # Accumulate the squared delta for 'loss_frequency' many uniformly-selected episodes.
                 if not(episode % (nr_episodes//loss_frequency)):
                     _step_loss = q_delta**2
-                    _episode_loss += _step_loss
+                    _episode_loss += _step_loss            
             
             # Break condition: If this was the last action, update the q-values for the terminal state one last time.            
             break_condition: bool = timestep.last() or _actions_so_far_ctr >= MAX_NR_ACTIONS
@@ -562,9 +580,6 @@ def run_rr_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq
 
     save_results_to_file(q_table, losses, episodic_returns, episodic_performances, evaluated_episodes, seed)
 
-    # TODO: Extract parameters & settings
-    # TODO: Visualize results
-    # TODO: Script to read in constructed q-table - and execute according to it.
     return episodic_returns, episodic_performances
 
 
@@ -668,8 +683,20 @@ def run_q_learning_tupleStates(seed=42 , env_name='sokocoin2', nr_episodes: int 
     return episodic_returns, episodic_performances
 
 if __name__ == "__main__":
+    print()
 
     betas = np.array([0.1, 0.3, 1, 3, 10, 30, 100, 300], dtype=float)
+    base_lines = np.array([Baselines.STARTING_STATE_BASELINE, Baselines.INACTION_BASELINE, Baselines.STEPWISE_INACTION_BASELINE])
     
-    run_q_learning()
+    # run_rr_learning(baseline_setting=Baselines.STEPWISE_INACTION_BASELINE)
+    # run_q_learning()
     # run_experiment()
+
+    env_name = 'sokocoin2'
+    nr_episodes = 9000
+    
+    for beta in betas[0:3]:
+        run_rr_learning(env_name=env_name, nr_episodes=nr_episodes, beta=beta, base_lines=base_lines)
+
+    # with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
+    #     p.starmap(run_rr_learning, args)
