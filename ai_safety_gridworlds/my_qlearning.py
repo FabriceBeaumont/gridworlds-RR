@@ -14,9 +14,9 @@ import multiprocessing
 from functools import partial
 
 class Baselines(Enum):
-    STARTING_STATE_BASELINE: str    = "starting"
-    INACTION_BASELINE: str          = "inaction"
-    STEPWISE_INACTION_BASELINE: str = "stepwise"
+    STARTING_STATE_BASELINE: str    = "Starting"
+    INACTION_BASELINE: str          = "Inaction"
+    STEPWISE_INACTION_BASELINE: str = "Stepwise"
         
 ACTIONS: Dict[int, str] = {
     0: "Up",
@@ -33,10 +33,10 @@ def _smooth(values, window=100):
   return values.rolling(window,).mean()
 
 
-def add_smoothed_data(df, window=100):
-  smoothed_data = df[['reward', 'performance']]
-  smoothed_data = smoothed_data.apply(_smooth, window=window).rename(columns={
-      'performance': 'performance_smooth', 'reward': 'reward_smooth'})
+def add_smoothed_data(df, window=100, keys: List[str] = ['episode', 'reward', 'performance', 'loss']):
+  smoothed_data = df[keys]
+  keys_smooth_names = dict([(k, f"{k}_smooth") for k in keys])
+  smoothed_data = smoothed_data.apply(_smooth, window=window).rename(columns=keys_smooth_names)
   temp = pd.concat([df, smoothed_data], axis=1)
   return temp
 
@@ -60,12 +60,7 @@ def print_states_dict(states_dict: Dict[str, int]) -> None:
 # plt.show()
 
 
-def preprocessing_explore_all_states(env, action_space: List[int], env_name: str, allow_loading_and_saving: bool = True) -> Dict[str, int]:
-
-    # - state known > NO FURTHER EXPLORATION
-    # - long way to state - no steps left
-    # - SHORT way to state ===>> NOT FURTHER EXPLORATION!!! 
-    
+def preprocessing_explore_all_states(env, action_space: List[int], env_name: str, allow_loading_and_saving: bool = True) -> Dict[str, int]:   
     # Visit all possible states.
     def explore(env, timestep, states_steps_dict: Dict[str, int], actions_so_far: List[int]=[]) -> Dict[str, int]:
         # NOTE: Running n-times against the wall and that the n+1 state the env changes. The exploration is greedy for NEW states.
@@ -97,14 +92,17 @@ def preprocessing_explore_all_states(env, action_space: List[int], env_name: str
     # If the states have been computed before, load them from file.
     file_dir: str = "AllStates"
     if not os.path.exists(file_dir): os.mkdir(file_dir)
-    filenname_states: str   = f"{file_dir}/states_{env_name}.npy"
-    filenname_runtime: str  = f"{file_dir}/states_{env_name}_rt.npy"
+    file_path: str = f"{file_dir}/{env_name}"
+    if not os.path.exists(file_path): os.mkdir(file_path)
+    
+    filenname_states: str   = f"{file_path}/states.npy"
+    filenname_runtime: str  = f"{file_path}/states_rt.npy"
 
     # DEBUGGING DATA:
     # Dict[id, str] - States backwards.
-    filenname_states_reverse: str   = f"{file_dir}/states_{env_name}_id_str.npy"        # DEBUGGING DATA:
+    filenname_states_reverse: str   = f"{file_path}/states_id_str.npy"        # DEBUGGING DATA:
     # Dict[str, actions_list:np.array].    
-    filenname_actions: str   = f"{file_dir}/actions_{env_name}.npy"                     # DEBUGGING DATA:
+    filenname_actions: str   = f"{file_path}/actions.npy"                     # DEBUGGING DATA:
         
     if os.path.exists(filenname_states) and allow_loading_and_saving:
         structured_array = np.load(filenname_states, allow_pickle=True)
@@ -143,7 +141,7 @@ def preprocessing_explore_all_states(env, action_space: List[int], env_name: str
 
 def env_loader(env_name, verbose: bool=False) -> Tuple:
     # Get environment.
-    env_name_lvl_dict = {'sokocoin2': 2, 'sokocoin3': 3}
+    env_name_lvl_dict = {'sokocoin0': 0, 'sokocoin2': 2, 'sokocoin3': 3}
     # env_name_size_dict  = {'sokocoin2': 72, 'sokocoin3': 100}; state_size = env_name_size_dict[env_name]
     env = factory.get_environment_obj('side_effects_sokoban', noops=True, level=env_name_lvl_dict[env_name])
 
@@ -151,7 +149,7 @@ def env_loader(env_name, verbose: bool=False) -> Tuple:
     action_space: List[int] = list(range(env.action_spec().minimum, env.action_spec().maximum + 1))
     # Explore all states (brute force) or load them from file if this has been done previously.
     if verbose:
-        print("Explore or load set of all states.", end="")
+        print("\nExplore or load set of all states.", end="")
     a, i, s = preprocessing_explore_all_states(env, action_space, env_name, allow_loading_and_saving=True)
     states_dict: Dict[str, int] = a
     int_states_dict: Dict[int, str] = i                                                 # DEBUGGING DATA:
@@ -161,8 +159,67 @@ def env_loader(env_name, verbose: bool=False) -> Tuple:
         print(f" (#{len(states_dict)} states, using {MAX_NR_ACTIONS} steps)")
     return env, action_space, states_dict, int_states_dict, states_actions_dict
 
+
+def save_results_to_file(env_name: str, q_table: np.array, losses: np.array, episodic_returns: np.array, episodic_performances: np.array, evaluated_episodes: np.array, seed: int, method_name: str, dir_name:str, complete_runtime:float, coverage_table: np.array=None) -> Tuple[str, str]:
+    # Create necessary directories to save perfomance and results
+    time_tag: str = datetime.now().strftime("%Y_%m_%d-%H_%M")
+    results_dir: str = "Results"    
+    dir_time_tag: str = f"{time_tag}_{str(dir_name).replace('.', '-')}"
+    env_path: str = f"{results_dir}/{env_name}/{method_name}/{dir_time_tag}"
+    
+    # Create all necessary directories.
+    path_names = env_path.split("/")
+    for i, _ in enumerate(path_names):
+        path = "/".join(path_names[0:i+1])
+        if not os.path.exists(path):
+            os.mkdir(path)
+    
+    # Create the paths.
+    filenname_qtable: str           = f"{env_path}/qtable.npy"
+    filenname_coverage_table: str   = f"{env_path}/ctable.npy"
+    filenname_general: str          = f"{env_path}/general.txt"
+    filenname_perf: str             = f"{env_path}/performances_table_seed{seed}.csv"
+    filenname_perf_plot: str        = f"{env_path}/plot1_performance.jpeg"
+    filenname_results_plot: str        = f"{env_path}/plot2_results.jpeg"
+    filenname_smooth_results_plot: str = f"{env_path}/plot3_results_smooth.jpeg"
+    
+    # Save the q-table to file.
+    np.save(filenname_qtable, q_table)
+    # Save the q-table to file.
+    np.save(filenname_coverage_table, coverage_table)
+    # Save general information, including the runtime to file.    
+    general_df = pd.DataFrame({'Method': [method_name],
+                               'Runtime': [timedelta(seconds=complete_runtime)]})
+    general_df.to_csv(filenname_general, index=None)
+    
+    # Save the perfomances to file.
+    d = {'reward': episodic_returns, 'performance': episodic_performances, 'loss': losses, 'episode': evaluated_episodes}
+    results_df = pd.DataFrame(d) 
+    results_df_with_smooth = add_smoothed_data(results_df)    
+    results_df_with_smooth.to_csv(filenname_perf)
+
+    # Plot the performance data and store it to image.
+    fig = px.line(results_df, x='episode', y=['reward', 'performance'], title=f"Performances - {env_name}")    
+    fig.write_image(filenname_perf_plot)
+    
+    # Standardize the data and plot it.
+    cols_to_standardize = ['reward', 'performance', 'loss', 'reward_smooth', 'performance_smooth', 'loss_smooth']
+    results_df_with_smooth[cols_to_standardize] = results_df_with_smooth[cols_to_standardize].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
+
+    # Plot the standardized performance data and store it to image.
+    fig = px.line(results_df_with_smooth, x='episode', y=['reward', 'performance', 'loss'], title=f"Standardized results - {env_name}")    
+    fig.write_image(filenname_results_plot)
+
+    # Plot the standardized smoothed performance data and store it to image.
+    fig = px.line(results_df_with_smooth, x='episode_smooth', y=['reward_smooth', 'performance_smooth', 'loss_smooth'], title=f"Smoothed results - {env_name}")
+    fig.write_image(filenname_smooth_results_plot)
+
+    print("Saving to file complete.\n\n")
+    return filenname_qtable, filenname_perf
+
+
 # Q-Learning implementation
-def run_q_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq: int = None, seed: int = 42):
+def run_q_learning(env_name='sokocoin2', nr_episodes: int = 9000, learning_rate: float = 1.0, set_loss_freq: int = None, seed: int = 42):
 
     def get_best_action(q_table: np.array, state_id: int) -> int:
         # Get the best action according to the q-values for every possible action in the current state.
@@ -177,52 +234,15 @@ def run_q_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq:
         else:
             return get_best_action(q_table, state_id)
 
-    def save_results_to_file(q_table: np.array, losses: np.array, episodic_returns: np.array, episodic_performances: np.array, evaluated_episodes: np.array, seed: int) -> Tuple[str, str]:
-        # Create necessary directories to save perfomance and results
-        time_tag: str = datetime.now().strftime("%Y_%m_%d-%H_%M")
-        results_dir: str = "Results"
-        if not os.path.exists(results_dir): os.mkdir(results_dir)
-
-        # Create the paths.
-        filenname_qtable: str       = f"{results_dir}/{time_tag}_{env_name}_qtable.npy"
-        filenname_performance: str  = f"{results_dir}/{time_tag}_{env_name}_performance_seed{seed}.csv"
-        filenname_performance_plot: str = f"{results_dir}/{time_tag}_{env_name}_performance_plot.jpeg"
-        
-        # Save the q-table to file.
-        np.save(filenname_qtable, q_table)
-
-        # Save the perfomances to file.
-        d = {'reward': episodic_returns, 'performance': episodic_performances, 'loss': losses, 'episode': evaluated_episodes}
-        results_df = pd.DataFrame(d) 
-        results_df_1 = add_smoothed_data(results_df)    
-        results_df_1.to_csv(filenname_performance)
-        
-        # Create line graph using Plotly Express.
-        cols_to_standardize = ['reward', 'performance', 'loss']
-        results_df[cols_to_standardize] = results_df[cols_to_standardize].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
-        fig = px.line(results_df, x='episode', y=['reward', 'performance', 'loss'], title=f"Performances - {env_name}")
-        
-        # fig = px.line()
-        # fig.add_trace(px.line(x=evaluated_episodes, y=episodic_returns, name='Returns').data[0])
-        # fig.add_trace(px.line(x=evaluated_episodes, y=episodic_performances, name='Performances').data[0])
-        # fig.add_trace(px.line(x=evaluated_episodes, y=losses, name='Accumulated Losses').data[0])
-        # # Customize the plot (optional).
-        # fig.update_layout(
-        #     title = f"Performances - {env_name}",
-        #     xaxis_title = "Episodes"
-        # )        
-        fig.write_image(filenname_performance_plot)
-              
-
-        return filenname_qtable, filenname_performance
-
+    start_time: float = time.time()
+    
     # Load the environment.
     env, action_space, states_dict, int_states_dict, states_actions_dict = env_loader(env_name, verbose=True)
     np.random.seed(seed)
     
     # Initialize the agent:
     # Learning rate (alpha).
-    learning_rate: float = 1. # 0.1
+    learning_rate: float = learning_rate
     # Initialization value of the q-learning q-table.
     q_init_value: float = 0.0
     # Time discount/ costs for each time step. Aka 'gamma'.
@@ -247,7 +267,7 @@ def run_q_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq:
     # Save the accumulated losses of the evaluated episodes.
     losses: np.array                    = np.zeros(loss_frequency)
     
-    # Initialize the exploration epsilon
+    # Initialize the exploration epsilon.
     exploration_epsilons: np.array[float] = np.arange(1.0, 0, -1.0 / nr_episodes)
         
     _last_state_id: int = None
@@ -262,21 +282,22 @@ def run_q_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq:
             rt_estimation_str: str = ''
             if episode > 0:
                 _all_episodes_rt_sum += round(time.time() - _last_episode_start_time, 3)
-                _expected_rt = round((_all_episodes_rt_sum / episode) * (nr_episodes - episode), 0)
-                rt_estimation_str = f"(Avg. runtime so far {timedelta(seconds=_all_episodes_rt_sum)} - Estimated runtime: {timedelta(seconds=_expected_rt)}"
+                _all_episodes_rt_avg = _all_episodes_rt_sum / episode
+                _expected_rt = round(_all_episodes_rt_avg * (nr_episodes - episode), 0)
+                rt_estimation_str = f"(Avg. runtime so far {timedelta(seconds=_all_episodes_rt_avg)} - Estimated remaining runtime: {timedelta(seconds=_expected_rt)})"
             print(f"\rQ-Learning episode {episode}/{nr_episodes} ({round(episode/nr_episodes *100)}%). {rt_estimation_str}", end="")
         _last_episode_start_time = time.time()
         # Get the initial set of observations from the environment.
         timestep = env.reset()
         # Reset the variables for each episode.
-        _current_state: str = ""
-        _last_state: str = ""
-        _last_state_id: int = None
-        _last_state: int = None
-        _last_action: int   = None
-        _nr_actions_so_far: int = 0
-        _actions_so_far: List[int] = []
-        _episode_loss: float = 0.        
+        _current_state: str         = ""
+        _last_state: str            = ""
+        _last_state_id: int         = None
+        _last_state: int            = None
+        _last_action: int           = None
+        _nr_actions_so_far: int     = 0
+        _actions_so_far: List[int]  = []
+        _episode_loss: float        = 0.
         
         exploration_epsilon: float = exploration_epsilons[episode]
 
@@ -333,14 +354,16 @@ def run_q_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq:
             _last_state_id: int = state_id
             _last_action: int   = action
 
-    save_results_to_file(q_table, losses, episodic_returns, episodic_performances, evaluated_episodes, seed)
+    runtime = time.time() - start_time
+    dir_name: str = f"e{nr_episodes}_d{discount}"
+    save_results_to_file(env_name, q_table, losses, episodic_returns, episodic_performances, evaluated_episodes, seed, method_name="QLearning",  dir_name=dir_name, complete_runtime=runtime)
 
     return episodic_returns, episodic_performances
 
 # RR-Learning implementation
 def run_rr_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq: int = None, beta: float = 10, \
-    baseline_setting: Baselines = Baselines.STARTING_STATE_BASELINE, seed: int = 42):
-
+    baseline_setting: Baselines = Baselines.STARTING_STATE_BASELINE, discount_factor: float = 0.99, learning_rate: float = 1.0, seed: int = 42):
+    
     def get_best_action(q_table: np.array, state_id: int) -> int:
         # Get the best action according to the q-values for every possible action in the current state.
         max_indices: np.array = np.argwhere(q_table[state_id, :] == np.amax(q_table[state_id, :])).flatten().tolist()
@@ -353,45 +376,6 @@ def run_rr_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq
             return np.random.choice(action_space)
         else:
             return get_best_action(q_table, state_id)
-
-    def save_results_to_file(q_table: np.array, losses: np.array, episodic_returns: np.array, episodic_performances: np.array, evaluated_episodes: np.array, seed: int) -> Tuple[str, str]:
-        # Create necessary directories to save perfomance and results
-        time_tag: str = datetime.now().strftime("%Y_%m_%d-%H_%M")
-        results_dir: str = "Results"
-        if not os.path.exists(results_dir): os.mkdir(results_dir)
-
-        # Create the paths.
-        filenname_qtable: str       = f"{results_dir}/{time_tag}_{env_name}_qtable.npy"
-        filenname_performance: str  = f"{results_dir}/{time_tag}_{env_name}_performance_seed{seed}.csv"
-        filenname_performance_plot: str = f"{results_dir}/{time_tag}_{env_name}_performance_plot.jpeg"
-        
-        # Save the q-table to file.
-        np.save(filenname_qtable, q_table)
-
-        # Save the perfomances to file.
-        d = {'reward': episodic_returns, 'performance': episodic_performances, 'loss': losses, 'episode': evaluated_episodes}
-        results_df = pd.DataFrame(d) 
-        results_df_1 = add_smoothed_data(results_df)    
-        results_df_1.to_csv(filenname_performance)
-        
-        # Create line graph using Plotly Express.
-        cols_to_standardize = ['reward', 'performance', 'loss']
-        results_df[cols_to_standardize] = results_df[cols_to_standardize].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
-        fig = px.line(results_df, x='episode', y=['reward', 'performance', 'loss'], title=f"Performances - {env_name}")
-        
-        # fig = px.line()
-        # fig.add_trace(px.line(x=evaluated_episodes, y=episodic_returns, name='Returns').data[0])
-        # fig.add_trace(px.line(x=evaluated_episodes, y=episodic_performances, name='Performances').data[0])
-        # fig.add_trace(px.line(x=evaluated_episodes, y=losses, name='Accumulated Losses').data[0])
-        # # Customize the plot (optional).
-        # fig.update_layout(
-        #     title = f"Performances - {env_name}",
-        #     xaxis_title = "Episodes"
-        # )        
-        fig.write_image(filenname_performance_plot)
-              
-
-        return filenname_qtable, filenname_performance
 
     def get_the_baseline_state_id(_actions_so_far_ctr: int, _previous_baseline_id: int, _actions_so_far: List[int] = None) -> int:        
         # For the starting state baseline, nothing has to be computed. It is already set.
@@ -414,6 +398,8 @@ def run_rr_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq
             _baseline_state_id: int = states_dict[_baseline_state]
 
         return _baseline_state_id
+
+    start_time: float = time.time()
     
     # Load the environment.
     env, action_space, states_dict, int_states_dict, states_actions_dict = env_loader(env_name, verbose=True)
@@ -421,11 +407,11 @@ def run_rr_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq
     
     # Initialize the agent:
     # Learning rate (alpha).
-    learning_rate: float = 1. # 0.1
+    learning_rate: float = learning_rate
     # Initialization value of the q-learning q-table.
     q_init_value: float = 0.0
     # Time discount/ costs for each time step. Aka 'gamma'.
-    discount: float = 0.99
+    discount: float = discount_factor
     # Coverage discount.
     c_discount: float = 1.0    
 
@@ -481,9 +467,10 @@ def run_rr_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq
         if not(episode % (nr_episodes//100)): 
             rt_estimation_str: str = ''
             if episode > 0:
-                _last_episode_rt = time.time() - _last_episode_start_time
-                _expected_rt = _last_episode_rt * episode
-                rt_estimation_str = f"(Took {timedelta(seconds=_last_episode_rt)} - Estimated runtime: {timedelta(seconds=_expected_rt)}"
+                _all_episodes_rt_sum += round(time.time() - _last_episode_start_time, 3)
+                _all_episodes_rt_avg = _all_episodes_rt_sum / episode
+                _expected_rt = round(_all_episodes_rt_avg * (nr_episodes - episode), 0)
+                rt_estimation_str = f"(Avg. runtime so far {timedelta(seconds=_all_episodes_rt_avg)} - Estimated remaining runtime: {timedelta(seconds=_expected_rt)})"
             print(f"\rQ-Learning episode {episode}/{nr_episodes} ({round(episode/nr_episodes *100)}%). {rt_estimation_str}", end="")
         _last_episode_start_time = time.time()
         # Get the initial set of observations from the environment.
@@ -578,7 +565,9 @@ def run_rr_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq
             _last_state_id: int = _current_state_id
             _last_action: int   = action
 
-    save_results_to_file(q_table, losses, episodic_returns, episodic_performances, evaluated_episodes, seed)
+    runtime = time.time() - start_time
+    dir_name: str = f"e{nr_episodes}_b{beta}_bl{baseline_setting}"
+    save_results_to_file(env_name, q_table, losses, episodic_returns, episodic_performances, evaluated_episodes, seed, method_name="RRLearning", dir_name=dir_name, complete_runtime=runtime, coverage_table=coverage_table)
 
     return episodic_returns, episodic_performances
 
@@ -588,7 +577,7 @@ def run_q_learning_tupleStates(seed=42 , env_name='sokocoin2', nr_episodes: int 
     np.random.seed(seed)
 
     # Get environment.
-    env_name_lvl_dict = {'sokocoin2': 2, 'sokocoin3': 3}
+    env_name_lvl_dict = {'sokocoin0': 0,'sokocoin2': 2, 'sokocoin3': 3}
     env_name_size_dict = {'sokocoin2': 72, 'sokocoin3': 100}
 
     env = factory.get_environment_obj('side_effects_sokoban', noops=True, level=env_name_lvl_dict[env_name])
@@ -683,20 +672,28 @@ def run_q_learning_tupleStates(seed=42 , env_name='sokocoin2', nr_episodes: int 
     return episodic_returns, episodic_performances
 
 if __name__ == "__main__":
-    print()
-
-    betas = np.array([0.1, 0.3, 1, 3, 10, 30, 100, 300], dtype=float)
+    betas1 = np.array([0.1, 3, 100], dtype=float)
+    # betas2 = np.array([0.3, 1, 10, 300], dtype=float)
     base_lines = np.array([Baselines.STARTING_STATE_BASELINE, Baselines.INACTION_BASELINE, Baselines.STEPWISE_INACTION_BASELINE])
+    env_names = ['sokocoin0', 'sokocoin2', 'sokocoin3']
+    nr_episodes = 9000
+    discount_factors = [0.99, 1] # TODO: Test undiscounted setting for 1.
+    learning_rates = [1.0, 0.1]
     
     # run_rr_learning(baseline_setting=Baselines.STEPWISE_INACTION_BASELINE)
-    # run_q_learning()
+    for env in env_names:
+        print(f"Current learning: {env}, E100")
+        run_q_learning(env_name=env, nr_episodes=100)
     # run_experiment()
 
-    env_name = 'sokocoin2'
-    nr_episodes = 9000
-    
-    for beta in betas[0:3]:
-        run_rr_learning(env_name=env_name, nr_episodes=nr_episodes, beta=beta, base_lines=base_lines)
+
+    # TODOS: Run by FB:
+    # TODO: First: Rename the AllStates files to match the new naming convention for the read in.
+    # TODO: Increase MAX NR OF ACTIONS only if needed. Used 100=sokocoin2
+    # for beta in betas1:
+    #     for baseline in base_lines:
+    #         print(f"Current learning: {env_name}, E{nr_episodes}, B{beta}, BL{baseline}")
+    #         run_rr_learning(env_name=env_name, nr_episodes=nr_episodes, beta=beta, baseline_setting=baseline)
 
     # with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
     #     p.starmap(run_rr_learning, args)
