@@ -84,7 +84,7 @@ def preprocessing_explore_all_states(env, action_space: List[int], env_name: str
                     states_steps_dict = explore(env, timestep, states_steps_dict, actions_so_far + [action])
                     # After the depth exploration, reset the environment, since it is probably changed in the recursion.
                     timestep = env.reset()
-                    # Redo the action to have the same environment as before the recursion call.
+                    # Redo the action to have the same environment as before the recursion call. 
                     for action in actions_so_far:
                         timestep = env.step(action)
         return states_steps_dict
@@ -159,6 +159,24 @@ def env_loader(env_name, verbose: bool=False) -> Tuple:
         print(f" (#{len(states_dict)} states, using {MAX_NR_ACTIONS} steps)")
     return env, action_space, states_dict, int_states_dict, states_actions_dict
 
+def save_intermediate_qtables_to_file(env_name: str, q_table: np.array, episode: int, method_name: str, dir_name:str) -> None:
+    # Create necessary directories to save perfomance and results
+    time_tag: str = datetime.now().strftime("%Y_%m_%d-%H_%M")
+    qtables_dir: str = "QTables"    
+    dir_time_tag: str = f"{time_tag}_{str(dir_name).replace('.', '-')}"
+    env_path: str = f"{qtables_dir}/{env_name}/{method_name}/{dir_time_tag}"
+    
+    # Create all necessary directories.
+    path_names = env_path.split("/")
+    for i, _ in enumerate(path_names):
+        path = "/".join(path_names[0:i+1])
+        if not os.path.exists(path):
+            os.mkdir(path)
+    
+    # Create the path.
+    filenname_qtable_e: str = f"{env_path}/qtable_{episode}.npy"    
+    # Save the q-table to file.
+    np.save(filenname_qtable_e, q_table)
 
 def save_results_to_file(env_name: str, q_table: np.array, losses: np.array, episodic_returns: np.array, episodic_performances: np.array, evaluated_episodes: np.array, seed: int, method_name: str, dir_name:str, complete_runtime:float, coverage_table: np.array=None) -> Tuple[str, str]:
     # Create necessary directories to save perfomance and results
@@ -241,6 +259,7 @@ def run_q_learning(env_name='sokocoin2', nr_episodes: int = 9000, learning_rate:
     np.random.seed(seed)
     
     # Initialize the agent:
+    method_name: str = "QLearning"
     # Learning rate (alpha).
     learning_rate: float = learning_rate
     # Initialization value of the q-learning q-table.
@@ -356,7 +375,7 @@ def run_q_learning(env_name='sokocoin2', nr_episodes: int = 9000, learning_rate:
 
     runtime = time.time() - start_time
     dir_name: str = f"e{nr_episodes}_d{discount}"
-    save_results_to_file(env_name, q_table, losses, episodic_returns, episodic_performances, evaluated_episodes, seed, method_name="QLearning",  dir_name=dir_name, complete_runtime=runtime)
+    save_results_to_file(env_name, q_table, losses, episodic_returns, episodic_performances, evaluated_episodes, seed, method_name=method_name,  dir_name=dir_name, complete_runtime=runtime)
 
     return episodic_returns, episodic_performances
 
@@ -406,6 +425,7 @@ def run_rr_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq
     np.random.seed(seed)
     
     # Initialize the agent:
+    method_name: str = "RRLearning"
     # Learning rate (alpha).
     learning_rate: float = learning_rate
     # Initialization value of the q-learning q-table.
@@ -414,6 +434,8 @@ def run_rr_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq
     discount: float = discount_factor
     # Coverage discount.
     c_discount: float = 1.0    
+    # Create a directory name, where the (intermediate) results will be stored.
+    dir_name: str = f"e{nr_episodes}_b{beta}_bl{baseline_setting}"    
 
     # Store the Q-table.
     q_table: np.array = q_init_value * np.ones((len(states_dict), len(action_space)), dtype=float)
@@ -524,7 +546,7 @@ def run_rr_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq
                 diff: np.array = coverage_table[_baseline_state_id, :] - coverage_table[_current_state_id, :]                
                 diff[diff<0] = 0
                 # Average this reachability (clipped to non-negative values) to get the relative reachability.
-                rr: float = np.mean(diff)
+                rr: float = np.mean(diff) # TODO: Multiply with state amount error factor.
                 
                 # UPDATE Q-VALUES.
                 reward = timestep.reward - beta * rr
@@ -565,111 +587,15 @@ def run_rr_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq
             _last_state_id: int = _current_state_id
             _last_action: int   = action
 
+        # Save the intermediate q-tables for further research.
+        save_intermediate_qtables_to_file(env_name, q_table, episode, method_name, dir_name)
+
     runtime = time.time() - start_time
-    dir_name: str = f"e{nr_episodes}_b{beta}_bl{baseline_setting}"
-    save_results_to_file(env_name, q_table, losses, episodic_returns, episodic_performances, evaluated_episodes, seed, method_name="RRLearning", dir_name=dir_name, complete_runtime=runtime, coverage_table=coverage_table)
+    
+    save_results_to_file(env_name, q_table, losses, episodic_returns, episodic_performances, evaluated_episodes, seed, method_name=method_name, dir_name=dir_name, complete_runtime=runtime, coverage_table=coverage_table)
 
     return episodic_returns, episodic_performances
 
-
-# Finished verion 1:
-def run_q_learning_tupleStates(seed=42 , env_name='sokocoin2', nr_episodes: int = 1000):
-    np.random.seed(seed)
-
-    # Get environment.
-    env_name_lvl_dict = {'sokocoin0': 0,'sokocoin2': 2, 'sokocoin3': 3}
-    env_name_size_dict = {'sokocoin2': 72, 'sokocoin3': 100}
-
-    env = factory.get_environment_obj('side_effects_sokoban', noops=True, level=env_name_lvl_dict[env_name])
-    state_size = env_name_size_dict[env_name]
-    action_space: List[int] = list(range(env.action_spec().minimum, env.action_spec().maximum + 1))
-    
-    # Initialize the environment.    
-    start_timestep = env.reset()
-   
-    alpha:float = 0.1
-    q_initialisation: float =0.0
-    # Time discount/ costs for each time step. Aka 'gamma'.
-    discount: float = 0.99
-
-    # Store the Q-table.
-    q_tables = collections.defaultdict(lambda: q_initialisation)
-
-    # Run training.
-    # returns, performances = run_training(agent, env, number_episodes=num_episodes, anneal=anneal)
-    episodic_returns: List[float] = []
-    episodic_performances: List[float] = []
-    # Simulated annealing: decrease the epsilon per episode by 1/nr_episodes.
-
-    # Initialize the exploration epsilon
-    exploration_epsilons: np.array[float] = np.arange(1.0, 0, -1.0 / nr_episodes)
-        
-    _current_state, _current_action = None, None
-
-    # Record the performance of the agent (run until the time has run out) for 'number_episodes' many episodes.
-    for episode in range(nr_episodes):
-        # Get the initial set of observations from the environment.
-        timestep = env.reset()
-        # Reset the variables for each episode.
-        _current_state, _current_action = None, None
-        exploration_epsilon: float = exploration_epsilons[episode]
-
-        while True:
-            # Perform a step.
-            state: Tuple = tuple(map(tuple, np.copy(timestep.observation['board'])))
-
-            # If this is NOT the initial state, update the q-values.
-            # If this was the initial state, we do not have any reference q-values for states/actions before, and thus cannot update anything.
-            if _current_state is not None:
-                reward = timestep.reward
-                
-                # Get the best action according to the q-values for every possible action in the current state.
-                values = [q_tables[(state, action)] for action in action_space]
-                max_indices = [i for i, value in enumerate(values) if value == max(values)]
-                # Among all best actions, chose randomly.
-                max_action = action_space[np.random.choice(max_indices)]
-
-                # Calculate the q-value delta.
-                delta = (reward + discount * q_tables[(state, max_action)] - q_tables[(_current_state, _current_action)])
-                
-                # Update the q-values.
-                q_tables[(_current_state, _current_action)] += alpha * delta
-               
-            _current_state: Tuple = state
-            # Determine action. Based on the exploration strategy (random or using the q-values).            
-            if np.random.random() < exploration_epsilon:
-                action = np.random.choice(action_space)
-            else:
-                values = [q_tables[(state, action)] for action in action_space]
-                max_indices = [i for i, value in enumerate(values) if value == max(values)]
-
-                action = action_space[np.random.choice(max_indices)]
-
-            timestep = env.step(action)            
-            if timestep.last():
-                # Update the q-values for the terminal state one last time.
-                reward = timestep.reward
-                # Calculate the q-value delta.
-                delta = (reward + discount * q_tables[(state, max_action)] - q_tables[(_current_state, _current_action)])
-                # Update the q-values.
-                q_tables[(_current_state, _current_action)] += alpha * delta
-                
-                episodic_returns.append(env.episode_return)
-                episodic_performances.append(env.get_last_performance())
-                break
-
-            _current_action = action
-            
-        if episode % 500 == 0:
-            print('Episode', episode)
-    
-    d = {'reward': episodic_returns, 'performance': episodic_performances,
-         'seed': [seed]*nr_episodes, 'episode': range(nr_episodes)}
-    results_df = pd.DataFrame(d)
-    results_df_1 = add_smoothed_data(results_df)
-    file_name = f"Test_{env_name}_{nr_episodes}"
-    results_df_1.to_csv(file_name)
-    return episodic_returns, episodic_performances
 
 if __name__ == "__main__":
     betas1 = np.array([0.1, 3, 100], dtype=float)
@@ -697,3 +623,12 @@ if __name__ == "__main__":
 
     # with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
     #     p.starmap(run_rr_learning, args)
+
+
+    # TODO: 
+    # 1. Teste die Konvergenz der Action Values:  Plot the Q Table for multiple episodes, check for convergence
+    # 2. Experiments: Compute AllStates for all environments
+    # 3. Update the epsilon strategy
+    # 4. Evaluate the constant-learning rate strategy. Therefore run for all Baselines, for beta [0.1, 3, 100] on sokocoin2
+    # 5. Evaluate a dynamic -learning rate strategy (simulated annealing - constant change rate from 1.0 to 0.1). Therefore run for all Baselines, for beta [0.1, 3, 100] on sokocoin2    
+    # 6. Do sth with the dicsount factor? E.g. undiscounted for 1.0
