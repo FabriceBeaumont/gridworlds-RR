@@ -1,3 +1,0 @@
-states_sokocoin2.npy 
-
-contains states explored using at most 100 steps.
