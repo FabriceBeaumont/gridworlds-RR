@@ -16,12 +16,9 @@ from functools import partial
 import warnings
 warnings.filterwarnings("ignore")
 
+# Local imports 
+from constants import Baselines
 
-class Baselines(Enum):
-    STARTING_STATE_BASELINE: str    = "Starting"
-    INACTION_BASELINE: str          = "Inaction"
-    STEPWISE_INACTION_BASELINE: str = "Stepwise"
-        
 ACTIONS: Dict[int, str] = {
     0: "Up",
     1: "Down",
