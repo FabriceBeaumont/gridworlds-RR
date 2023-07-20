@@ -1,57 +1,155 @@
+"""This file contains an implementation of the Q-learning and RR-learning algorithm.
+    Notably, the q-table is set up as a np.array. To known how large it needs to be, 
+    an estimation of the size of the states set is used.
+"""
 from typing import List, Dict, Set, Tuple
-from helpers import factory
-import numpy as np
-import time
-from enum import Enum
-from datetime import timedelta, datetime
-
 import warnings
 warnings.filterwarnings("ignore")
+from datetime import timedelta
+import time
+import numpy as np
+import os 
+
+from helpers import factory
 
 # Local imports
 import helper_fcts as hf
+from constants import Baselines, Environments, Strategies, StateSpaceSizeEstimations, MAX_NR_ACTIONS
 
-# Maximum number of actions that can be performed by the agend during the states exploration in the preprocessing step.
-MAX_NR_ACTIONS: int = 100
-
-# Set up a counter that will be used to assign state-ids to unknown states.
-# This allows to identify matrix rows to individual states. 
-STATE_ID_CTR: int = 0
-
-class Baselines(Enum):
-    STARTING_STATE_BASELINE: str    = "Starting"
-    INACTION_BASELINE: str          = "Inaction"
-    STEPWISE_INACTION_BASELINE: str = "Stepwise"
-
-def env_loader(env_name) -> Tuple:
-    # Get environment.
-    env_name_lvl_dict = {'sokocoin0': 0, 'sokocoin2': 2, 'sokocoin3': 3}
-    # env_name_size_dict  = {'sokocoin2': 72, 'sokocoin3': 100}; state_size = env_name_size_dict[env_name]
-    env = factory.get_environment_obj('side_effects_sokoban', noops=True, level=env_name_lvl_dict[env_name])
-
-    # Construct the action space.
-    action_space: List[int] = list(range(env.action_spec().minimum, env.action_spec().maximum + 1))
-    # Explore all states (brute force) or load them from file if this has been done previously.
+class StateSpaceBuilder():
     
-    states_dict: Dict[str, int] = dict()
-            
-    return env, action_space, states_dict
+    def __init__(self, env_name: str, strategy: Strategies = Strategies.ESTIMATE_STATES, env = None, action_space = None):
+        self.strategy = strategy
+        self.env_name: str = env_name
+        self.states_dict: Dict[str] = dict()
 
-# Q-Learning implementation
-def run_q_learning(env_name: str, states_set_size: int, nr_episodes: int, learning_rate: float = .1, discount_factor: float = .99, set_loss_freq: int = None, seed: int = 42, verbose: bool = False):
+        # For the estimation strategy: 
+        # Set up a counter that will be used to assign state-ids to unknown states.
+        # This allows to identify matrix rows to individual states. 
+        # Since an estimate is used, the states will be revealed and assigned to an id during the learning itself.
+        self._estimation_state_id_ctr: int = 0
 
-    def get_set_state_id(state: str) -> int:
-        global STATE_ID_CTR
-        
+        if self.strategy == Strategies.EXPLORE_STATES:
+            self.states_dict, _, _ = self._explore_states_in_n_steps(env=env, action_space=action_space, env_name=env_name)
+
+    def get_nr_states(self) -> int:
+        if self.strategy == Strategies.ESTIMATE_STATES:
+            return StateSpaceSizeEstimations[self.env_name]
+        if self.strategy == Strategies.EXPLORE_STATES:
+            return len(self.states_dict.keys())
+
+    def get_state_id(self, state: str) -> int:
+        # Using the estimate strategy, the dictionary will be filled successively with state-id pairs.
+        # In this case the q-table will be initialized using an estimate of the states space.
+        # Assert, that the estimation is higher than the actually needed number of states!
+        if self.strategy == Strategies.ESTIMATE_STATES:
+            return self._get_set_state_id(state)
+        # Using the exploration strategy, the dictionary has been initialized at class initialization (preprocessing)        
+        # In this case the q-table as the exact same size
+        # Since the exploration is limited by a number of steps, we can only assert, that all required states have been found already!
+        if self.strategy == Strategies.EXPLORE_STATES:
+            state_id: int = self.states_dict[state]
+            assert state_id is not None, f"PRE-PROCESSING WAS INCOMPLETE: Agent encountered an unknown state!"
+            return state_id
+    
+    def _get_set_state_id(self, state: str) -> int:
         # If not already saved, add the state to the dictionary
-        if states_dict.get(state) is None:
-            states_dict[state] = STATE_ID_CTR
-            STATE_ID_CTR += 1
+        if self.states_dict.get(state) is None:
+            self.states_dict[state] = self._estimation_state_id_ctr
+            self._estimation_state_id_ctr += 1
                     
-        assert STATE_ID_CTR < states_set_size, f"More than {states_set_size} satets needed! (In episode {episode}.)"
-
-        return states_dict.get(state)
+        assert self._estimation_state_id_ctr < self.get_nr_states(), f"More than {self.get_nr_states()} states needed! The estimation was to low!"        
+        return self.states_dict.get(state)
     
+    def _explore_states_in_n_steps(self, env, action_space: List[int], env_name: str, allow_loading_and_saving: bool = True) -> Dict[str, int]:
+        """This function returns the complete set of attainable states. Either by recursively exploring them (which may be quite costly), or loading it from a file.
+
+        Args:
+            env (_type_): Ai savety gridworlds environment.
+            action_space (List[int]): List of possible actions. See constants.ACTIONS.
+            env_name (str): Name of the environment.
+            allow_loading_and_saving (bool, optional): If true, the functions tries to load the set of states first, and only explores them, if no suitable file has been found. Set it to false, in order to explore in any case. Defaults to True.
+
+        Returns:
+            Dict[str, int]: A dictionary of states [str] and the minimum of required steps to obtain them from the starting state.
+        """
+        # Visit all possible states.
+        def explore(env, timestep, states_steps_dict: Dict[str, int], actions_so_far: List[int]=[]) -> Dict[str, int]:
+            # NOTE: Running n-times against the wall and that the n+1 state the env changes. The exploration is greedy for NEW states.
+            board_str: str = str(timestep.observation['board'])
+
+            last_needed_nr_steps: int = states_steps_dict.get(board_str)
+            # Continue, if the state is new (e.a. if the dictionary-get returned None).
+            # Continue AS WELL, if the state is not new, but has now been reached with fewer steps!
+            # (Otherwise reaching a state with inefficient steps prohibits further realistic exploration).
+            if last_needed_nr_steps is None or last_needed_nr_steps > len(actions_so_far):
+                states_steps_dict[board_str] = len(actions_so_far)
+                states_actions_dict[board_str] = np.array(actions_so_far, dtype=int)
+                
+                if not (len(states_steps_dict.keys()) % 50): print(f"\rExploring states ... ({len(states_steps_dict.keys())} so far)", end="")
+                
+                if not timestep.last() and len(actions_so_far) < MAX_NR_ACTIONS:
+                    for action in action_space:
+                        # Explore all possible steps, after taking the current chosen action.
+                        timestep = env.step(action)
+                        states_steps_dict = explore(env, timestep, states_steps_dict, actions_so_far + [action])
+                        # After the depth exploration, reset the environment, since it is probably changed in the recursion.
+                        timestep = env.reset()
+                        # Redo the action to have the same environment as before the recursion call. 
+                        for action in actions_so_far:
+                            timestep = env.step(action)
+            return states_steps_dict
+
+        # Set up the (possibly existing) file names and directories.
+        file_dir: str = "AllStates"
+        if not os.path.exists(file_dir): os.mkdir(file_dir)
+        file_path: str = f"{file_dir}/{env_name.value}"
+        if not os.path.exists(file_path): os.mkdir(file_path)
+        
+        # Dict[str, id] - Given an id, return the state.
+        filenname_states_id: str    = f"{file_path}/states.npy"
+        # Dict[id, str] - Given a state, return its id.
+        filenname_id_states: str    = f"{file_path}/states_id_str.npy"
+        # Dict[str, actions_list:np.array].    
+        filenname_actions: str      = f"{file_path}/actions.npy"    
+        filenname_runtime: str      = f"{file_path}/states_rt.npy"
+
+        # If the states have been computed before, load them from file.
+        if os.path.exists(filenname_states_id) and allow_loading_and_saving:
+            structured_array    = np.load(filenname_states_id,  allow_pickle=True)
+            int_states_dict     = np.load(filenname_id_states,  allow_pickle=True)
+            states_actions_dict = np.load(filenname_actions,    allow_pickle=True)
+            runtime             = np.load(filenname_runtime,    allow_pickle=True)
+            
+            return structured_array.item(), int_states_dict, states_actions_dict
+        else:
+            timestep = env.reset()
+            states_steps_dict: Dict[str, int] = dict()
+            states_actions_dict: Dict[str, np.array] = dict()
+
+            start_time = time.time()        
+            states_steps_dict = explore(env, timestep, states_steps_dict)
+            end_time = time.time()
+            states_set: Set = set(states_steps_dict.keys())
+            elapsed_sec = end_time - start_time
+                    
+            states_int_dict: Dict[str, int] = dict(zip(states_set, range(len(states_set))))
+            int_states_dict: Dict[str, int] = dict(zip(range(len(states_set)), states_set))
+            
+            env.reset()
+            print(f"\rExplored {len(states_set)} states, in {timedelta(seconds=elapsed_sec)} seconds", end="")
+            if allow_loading_and_saving:
+                np.save(filenname_states_id, states_int_dict)            
+                np.save(filenname_id_states, int_states_dict)
+                np.save(filenname_actions, states_actions_dict)
+                np.save(filenname_runtime, elapsed_sec)
+                
+            return states_int_dict, int_states_dict, states_actions_dict
+
+
+# Q-Learning implementation.
+def run_q_learning(env_name: str, states_set_size: int, nr_episodes: int, learning_rate: float = .1, strategy: Strategies = Strategies.ESTIMATE_STATES, q_discount: float = .99, set_loss_freq: int = None, seed: int = 42, verbose: bool = False):
+
     def get_best_action(q_table: np.array, state_id: int) -> int:
         # Get the best action according to the q-values for every possible action in the current state.
         max_indices: np.array = np.argwhere(q_table[state_id, :] == np.amax(q_table[state_id, :])).flatten().tolist()
@@ -65,14 +163,10 @@ def run_q_learning(env_name: str, states_set_size: int, nr_episodes: int, learni
         else:
             return get_best_action(q_table, state_id)
 
-    start_time: float = time.time()
-    
-    # Load the environment.
-    
-    if verbose:
-        print(f"Allocating a q-table with size {states_set_size} (estimate). \
-            We expect to not encounter more different states using {MAX_NR_ACTIONS} steps)")
-    env, action_space, states_dict = env_loader(env_name)
+    start_time: float = time.time()    
+    # Load the environment.    
+    env, action_space = hf.env_loader(env_name)
+    states_set = StateSpaceBuilder(env_name=env_name, strategy=strategy, env=env, action_space=action_space)
     np.random.seed(seed)
         
     # Initialize the agent:
@@ -82,10 +176,13 @@ def run_q_learning(env_name: str, states_set_size: int, nr_episodes: int, learni
     # Initialization value of the q-learning q-table.
     q_init_value: float = 0.0
     # Time discount/ costs for each time step. Aka 'gamma'.
-    discount_factor: float = discount_factor
+    q_discount: float = q_discount    
+    # Save the results (including the runtime) to file.
+    dir_name: str = f"e{nr_episodes}_d{q_discount}"
+    print(f">>RUN: {method_name}: env-{env_name.value}, e{nr_episodes}, lr{learning_rate}, {strategy.value}, d{q_discount}")    
 
     # Store the Q-table.
-    q_table: np.array = q_init_value * np.ones((states_set_size, len(action_space)))
+    q_table: np.array = q_init_value * np.ones((states_set.get_nr_states(), len(action_space)))
 
     # Initialize datastructures for the evaluation.
     # Every 'nr_episodes/loss_frequency' episode, save the last episodic returns and performance, and the accumulated loss.
@@ -104,11 +201,7 @@ def run_q_learning(env_name: str, states_set_size: int, nr_episodes: int, learni
     losses: np.array                    = np.zeros(loss_frequency)
         
     # Initialize the exploration epsilon
-    # For the first 9/10 episodes reduce the exploration rate linearly to zero.
-    exp_strategy_linear_decrease: np.array[float]   = np.arange(1.0, 0, -1.0 / (nr_episodes * 0.9))
-    # For the last 1/10 episodes, keep the exploration at zero.
-    exp_strategy_zero: np.array[float]              = np.zeros(int(nr_episodes * 0.11))
-    exploration_epsilons: np.array[float] = np.concatenate((exp_strategy_linear_decrease, exp_strategy_zero))
+    exploration_epsilons: np.array[float] = hf.get_annealed_epsilons(nr_episodes)
         
     _last_state_id: int = None
     _last_action: int   = None
@@ -121,12 +214,14 @@ def run_q_learning(env_name: str, states_set_size: int, nr_episodes: int, learni
         # Progress print.
         if not(episode % (nr_episodes//100)): 
             rt_estimation_str: str = ''
+            # Interpret the 0th episode as the first.
+            e = episode + 1                
             if episode > 0:
                 _all_episodes_rt_sum += round(time.time() - _last_episode_start_time, 3)
-                _all_episodes_rt_avg = _all_episodes_rt_sum / episode
-                _expected_rt = round(_all_episodes_rt_avg * (nr_episodes - episode), 0)
+                _all_episodes_rt_avg = _all_episodes_rt_sum / e
+                _expected_rt = round(_all_episodes_rt_avg * (nr_episodes - e), 0)
                 rt_estimation_str = f"(Avg. runtime so far {timedelta(seconds=_all_episodes_rt_avg)} - Estimated remaining runtime: {timedelta(seconds=_expected_rt)})"
-            print(f"\rQ-Learning episode {episode}/{nr_episodes} ({round(episode/nr_episodes *100)}%). {rt_estimation_str}", end="")
+            print(f"\r{method_name} episode {e}/{nr_episodes} ({round(e/nr_episodes *100)}%). {rt_estimation_str}", end="")
 
         _last_episode_start_time = time.time()
         # Get the initial set of observations from the environment.
@@ -145,7 +240,7 @@ def run_q_learning(env_name: str, states_set_size: int, nr_episodes: int, learni
             # Perform a step.
             _current_state: str = str(timestep.observation['board'])
             # Check if the state is already known. Otherwise assign in a free 'state_id'.
-            state_id = get_set_state_id(_current_state)
+            state_id = states_set.get_state_id(_current_state)
                       
             # If this is NOT the initial state, update the q-values.
             # If this was the initial state, we do not have any reference q-values for states/actions before, and thus cannot update anything.
@@ -154,7 +249,7 @@ def run_q_learning(env_name: str, states_set_size: int, nr_episodes: int, learni
                 # Get the best action according to the q-table (trained so far).
                 max_action = get_best_action(q_table, state_id)
                 # Calculate the q-value delta.
-                delta = (reward + discount_factor * q_table[state_id, max_action] - q_table[_last_state_id, _last_action])
+                delta = (reward + q_discount * q_table[state_id, max_action] - q_table[_last_state_id, _last_action])
                 # Update the q-values.
                 q_table[_last_state_id, _last_action] += learning_rate * delta
 
@@ -189,26 +284,15 @@ def run_q_learning(env_name: str, states_set_size: int, nr_episodes: int, learni
 
     # Measure the runtime.
     runtime = time.time() - start_time
-    # Save the results (including the runtime) to file.
-    dir_name: str = f"e{nr_episodes}_d{discount_factor}"
-    hf.save_results_to_file(env_name, q_table, losses, episodic_returns, episodic_performances, evaluated_episodes, seed, method_name=method_name,  dir_name=dir_name, complete_runtime=runtime)
+    # Print line to offset the '\r'-progress prints.
+    print()
+    hf.save_results_to_file(env_name.value, q_table, losses, episodic_returns, episodic_performances, evaluated_episodes, seed, method_name=method_name,  dir_name=dir_name, complete_runtime=runtime)
 
     return episodic_returns, episodic_performances
 
-# RR-Learning implementation
+# RR-Learning implementation.
 def run_rr_learning(env_name: str, states_set_size: int, nr_episodes: int, learning_rate: float = .1, discount_factor: float = .99, beta: float = 10, \
-    baseline_setting: Baselines = Baselines.STARTING_STATE_BASELINE, set_loss_freq: int = None, seed: int = 42, verbose: bool = False):
-
-    def get_set_state_id(state: str) -> int:
-        global STATE_ID_CTR
-        # If not already saved, add the state to the dictionary
-        if states_dict.get(state) is None:
-            states_dict[state] = STATE_ID_CTR            
-            STATE_ID_CTR += 1
-                    
-        assert STATE_ID_CTR < states_set_size, f"More than {states_set_size} satets needed! (In episode {episode}.)"
-
-        return states_dict.get(state)
+    baseline_setting: Baselines = Baselines.STARTING_STATE_BASELINE, strategy: Strategies = Strategies.ESTIMATE_STATES, set_loss_freq: int = None, seed: int = 42, verbose: bool = False):
         
     def get_best_action(q_table: np.array, state_id: int) -> int:
         # Get the best action according to the q-values for every possible action in the current state.
@@ -235,23 +319,21 @@ def run_rr_learning(env_name: str, states_set_size: int, nr_episodes: int, learn
         # For the stepwise inaction baseline, simulate doing the actions as before, but choosing the NOOP action for the last step.
         if baseline_setting == Baselines.STEPWISE_INACTION_BASELINE:                    
             # Up to the last time step, simulate the environment as before.
-            env_simulation, _, _, _, _ = env_loader(env_name)
+            env_simulation, _ = hf.env_loader(env_name)
             for a in _actions_so_far[:1]:                        
                 env_simulation.step(a)
             # But for the last time step perform the NOOP action.
             timestep = env_simulation.step(action_space[4])
             _baseline_state = str(timestep.observation['board'])
-            _baseline_state_id = get_set_state_id(_baseline_state)
+            _baseline_state_id = states_set.get_state_id(_baseline_state)
 
         return _baseline_state_id
 
     start_time: float = time.time()
     
     # Load the environment.
-    if verbose:
-        print(f"Allocating a q-table with size {states_set_size} (estimate). \
-            We expect to not encounter more different states using {MAX_NR_ACTIONS} steps)")    
-    env, action_space, states_dict = env_loader(env_name)
+    env, action_space = hf.env_loader(env_name)
+    states_set = StateSpaceBuilder(env_name=env_name, strategy=strategy, env=env, action_space=action_space)
     np.random.seed(seed)
     
     # Initialize the agent:
@@ -261,14 +343,15 @@ def run_rr_learning(env_name: str, states_set_size: int, nr_episodes: int, learn
     # Initialization value of the q-learning q-table.
     q_init_value: float = 0.0
     # Time discount/ costs for each time step. Aka 'gamma'.
-    discount: float = discount_factor
+    q_discount: float = discount_factor
     # Coverage discount.
     c_discount: float = 1.0    
     # Create a directory name, where the (intermediate) results will be stored.
-    dir_name: str = f"e{nr_episodes}_b{beta}_bl{baseline_setting}"    
-
+    dir_name: str = f"e{nr_episodes}_b{beta}_bl{baseline_setting.value}"
+    print(f">>RUN: {method_name}: env-{env_name.value}, e{nr_episodes}, lr{learning_rate}, {strategy.value}, d{q_discount}, bl-{baseline_setting.value}, b{beta}")
+    
     # Store the Q-table.
-    q_table: np.array = q_init_value * np.ones((states_set_size, len(action_space)), dtype=float)
+    q_table: np.array = q_init_value * np.ones((states_set.get_nr_states(), len(action_space)), dtype=float)
     # Store the coverage values (reachability). 
     # Entrz 'ij' gives the coverage of state 'j' when starting from state 'i'. ({From_states}x{To_states})
     coverage_table: np.array = np.eye(states_set_size, dtype=np.float32)
@@ -290,11 +373,7 @@ def run_rr_learning(env_name: str, states_set_size: int, nr_episodes: int, learn
     losses: np.array                    = np.zeros(loss_frequency)
     
     # Initialize the exploration epsilon
-    # For the first 9/10 episodes reduce the exploration rate linearly to zero.
-    exp_strategy_linear_decrease: np.array[float]   = np.arange(1.0, 0, -1.0 / (nr_episodes * 0.9))
-    # For the last 1/10 episodes, keep the exploration at zero.
-    exp_strategy_zero: np.array[float]              = np.zeros(int(nr_episodes * 0.11))
-    exploration_epsilons: np.array[float] = np.concatenate((exp_strategy_linear_decrease, exp_strategy_zero))
+    exploration_epsilons: np.array[float] = hf.get_annealed_epsilons(nr_episodes)
         
     _last_state_id: int = None
     _last_action: int   = None
@@ -311,7 +390,7 @@ def run_rr_learning(env_name: str, states_set_size: int, nr_episodes: int, learn
         # Until no more steps left or the environment terminates, perform the noop-action and save the occurring states.
         while not timestep.last() and _actions_ctr <= MAX_NR_ACTIONS:
             timestep = env.step(action_space[4])
-            tmp_id = get_set_state_id(str(timestep.observation['board']))
+            tmp_id = states_set.get_state_id(str(timestep.observation['board']))
             tmp_states_ids_lst.append(tmp_id)
             _actions_ctr += 1
 
@@ -322,14 +401,17 @@ def run_rr_learning(env_name: str, states_set_size: int, nr_episodes: int, learn
     # Run training.
     # Record the performance of the agent (run until the time has run out) for 'number_episodes' many episodes.
     for episode in range(nr_episodes):
+        # Progress print.
         if not(episode % (nr_episodes//100)): 
             rt_estimation_str: str = ''
+            # Interpret the 0th episode as the first.
+            e = episode + 1
             if episode > 0:
                 _all_episodes_rt_sum += round(time.time() - _last_episode_start_time, 3)
-                _all_episodes_rt_avg = _all_episodes_rt_sum / episode
-                _expected_rt = round(_all_episodes_rt_avg * (nr_episodes - episode), 0)
+                _all_episodes_rt_avg = _all_episodes_rt_sum / e
+                _expected_rt = round(_all_episodes_rt_avg * (nr_episodes - e), 0)
                 rt_estimation_str = f"(Avg. runtime so far {timedelta(seconds=_all_episodes_rt_avg)} - Estimated remaining runtime: {timedelta(seconds=_expected_rt)})"
-            print(f"\rRR-Learning episode {episode}/{nr_episodes} ({round(episode/nr_episodes *100)}%). {rt_estimation_str}", end="")
+            print(f"\r{method_name} episode {e}/{nr_episodes} ({round(e/nr_episodes *100)}%). {rt_estimation_str}", end="")
         _last_episode_start_time = time.time()
         # Get the initial set of observations from the environment.
         timestep = env.reset()
@@ -349,17 +431,8 @@ def run_rr_learning(env_name: str, states_set_size: int, nr_episodes: int, learn
 
         while True:
             # Perform a step.
-            try:    
-                _current_state: str = str(timestep.observation['board'])
-                _current_state_id = get_set_state_id(_current_state)
-                                
-            except KeyError as e:
-                error_message = f"PRE-PROCESSING WAS INCOMPLETE: Agent encountered a state during q-learning (in episode {episode}/{nr_episodes}), which was not explored in the preprocessing!"
-                print(error_message)
-                print(f"'Unknown' state:\n{str(timestep.observation['board'])}")
-                hf.print_actions_list(_actions_so_far)
-                print(f"Previous state:\n{_last_state}")
-                hf.print_states_dict(states_dict)
+            _current_state: str = str(timestep.observation['board'])
+            _current_state_id = states_set.get_state_id(_current_state)       
 
             # If this is the initial state, save its id as baseline.
             # Thus by default the starting state basline is set. If another baseline-setting is used, it will be overwritten anyways.
@@ -368,7 +441,6 @@ def run_rr_learning(env_name: str, states_set_size: int, nr_episodes: int, learn
                 _baseline_state_id = _current_state_id
             # If this is NOT the initial state, update the q-values.
             else:
-                # TODO: TEST THIS BASELINE STUFF, RR computation and coverage updates.                
                 _baseline_state_id = get_the_baseline_state_id(_baseline_state_id, _actions_so_far)
                 
                 # UPDATE REACHABILITIES.
@@ -389,7 +461,7 @@ def run_rr_learning(env_name: str, states_set_size: int, nr_episodes: int, learn
                 # Get the best action according to the q-table (trained so far).
                 max_action = get_best_action(q_table, _current_state_id)
                 # Calculate the q-value delta.
-                q_delta = (reward + discount * q_table[_current_state_id, max_action] - q_table[_last_state_id, _last_action])
+                q_delta = (reward + q_discount * q_table[_current_state_id, max_action] - q_table[_last_state_id, _last_action])
                 # Update the q-values.
                 q_table[_last_state_id, _last_action] += learning_rate * q_delta
 
@@ -419,52 +491,76 @@ def run_rr_learning(env_name: str, states_set_size: int, nr_episodes: int, learn
                 _actions_so_far.append(action)
 
             # Update the floop-variables.
-            _last_state: str    = _current_state            
+            _last_state: str    = _current_state
             _last_state_id: int = _current_state_id
             _last_action: int   = action
 
         # Save the intermediate q-tables for further research.
-        if not episode % 10000:
+        if episode % 1000 == 0:
             hf.save_intermediate_qtables_to_file(env_name, q_table, episode, method_name, dir_name)
 
     runtime = time.time() - start_time
-    
-    hf.save_results_to_file(env_name, q_table, losses, episodic_returns, episodic_performances, evaluated_episodes, seed, method_name=method_name, dir_name=dir_name, complete_runtime=runtime, coverage_table=coverage_table)
+    # Print line to offset the '\r'-progress prints.
+    print()
+    hf.save_results_to_file(env_name.value, q_table, losses, episodic_returns, episodic_performances, evaluated_episodes, seed, method_name=method_name, dir_name=dir_name, complete_runtime=runtime, coverage_table=coverage_table)
 
     return episodic_returns, episodic_performances
 
-
-def run_experiments_q_vs_rr(env_names: List[str], env_sizes: List[int], nr_episodes: int, learning_rates: List[float], discount_factors: List[float], betas: List[float], baselines: List[Baselines]):
-    for env_name, env_size in zip(env_names, env_sizes):        
+# EXPERIMENTS
+def run_experiments_q_vs_rr(env_names: List[str], nr_episodes: int, learning_rates: List[float], discount_factors: List[float], betas: List[float], baselines: List[Baselines], strategy: Strategies = Strategies.ESTIMATE_STATES):
+    print()
+    nr_experiments: int = len(env_names) * len(learning_rates) * len(discount_factors)
+    ctr: int = 1
+    
+    for n in env_names:
+        s: int = StateSpaceSizeEstimations[n]
+        
         for lr in learning_rates:
-            for discount in discount_factors:
-                print(f"Current settings: {env_name}, E{nr_episodes}, lr{lr}, discount{discount}")
-                run_q_learning(states_set_size=env_size, env_name=env_name, nr_episodes=nr_episodes, learning_rate=lr)
-
+            for d in discount_factors:
+                print(f"Experiment {ctr}/{nr_experiments}: {n}, e{nr_episodes}, lr{lr}, discount{d}, state set-{strategy.value}")
+                run_q_learning(env_name=n, states_set_size=s, nr_episodes=nr_episodes, learning_rate=lr, strategy=strategy, q_discount=d)
+                
                 for beta in betas:
                     for bl in baselines:
-                        run_rr_learning(states_set_size=env_size, env_name=env_name, nr_episodes=nr_episodes, learning_rate=lr, beta=beta, baseline_setting=bl)
+                        run_rr_learning(env_name=n, states_set_size=s, nr_episodes=nr_episodes, learning_rate=lr, beta=beta, baseline_setting=bl, strategy=strategy, discount_factor=d)
 
-def experiment1():
-    env_names                       = ['sokocoin0', 'sokocoin2']
-    env_state_set_size_estimates    = [100, 47648]
+def demo():
+    env_names                       = [Environments.SOKOCOIN0, Environments.SOKOCOIN2]
+    nr_episodes: int                = 100
+    learning_rates: List[float]     = [.1]
+    discount_factors: List[float]   = [0.99]
+    betas: List[float]              = [0.1]
+    baselines: np.array             = np.array([Baselines.STARTING_STATE_BASELINE, Baselines.INACTION_BASELINE, Baselines.STEPWISE_INACTION_BASELINE])
+
+    # Perform the learning using an estimation of the state space size.    
+    run_experiments_q_vs_rr(env_names, nr_episodes, learning_rates, discount_factors, betas, baselines, strategy=Strategies.ESTIMATE_STATES)
+    # Perform the learning using an preprocessed exploration of the state space size.
+    run_experiments_q_vs_rr(env_names, nr_episodes, learning_rates, discount_factors, betas, baselines, strategy=Strategies.EXPLORE_STATES)
+    
+
+def experiment1_base_estimate():
+    env_names                       = [Environments.SOKOCOIN0.value, Environments.SOKOCOIN2]
     nr_episodes: int                = 10000
     learning_rates: List[float]     = [.1]
     discount_factors: List[float]   = [0.99]
     betas: List[float]              = [0.1, 3, 100]
-    baselines: np.array            = np.array([Baselines.STARTING_STATE_BASELINE, Baselines.INACTION_BASELINE, Baselines.STEPWISE_INACTION_BASELINE])
+    baselines: np.array             = np.array([Baselines.STARTING_STATE_BASELINE, Baselines.INACTION_BASELINE, Baselines.STEPWISE_INACTION_BASELINE])
+        
+    run_experiments_q_vs_rr(env_names, nr_episodes, learning_rates, discount_factors, betas, baselines, strategy=Strategies.ESTIMATE_STATES)
 
-    run_experiments_q_vs_rr(env_names, env_state_set_size_estimates, nr_episodes, learning_rates, discount_factors, betas, baselines)
 
-env_names                       = ['sokocoin0', 'sokocoin2']    # , 'sokocoin3'
-env_state_set_size_estimates    = [100, 47648]                  # , 6988675     #TODO: sparse matrix for qtable/cable?
-nr_episodes: int                = 10000
-learning_rates: List[float]     = [.1, .3, .9]
-discount_factors: List[float]   = [0.99, 1.]
-base_lines: np.array            = np.array([Baselines.STARTING_STATE_BASELINE, Baselines.INACTION_BASELINE, Baselines.STEPWISE_INACTION_BASELINE])
+def experiment2_base_estimate():
+    env_names                       = [Environments.SOKOCOIN0.value, Environments.SOKOCOIN2]
+    nr_episodes: int                = 10000
+    learning_rates: List[float]     = [.1]
+    discount_factors: List[float]   = [0.99]
+    betas: List[float]              = [0.1, 3, 100]
+    baselines: np.array             = np.array([Baselines.STARTING_STATE_BASELINE, Baselines.INACTION_BASELINE, Baselines.STEPWISE_INACTION_BASELINE])
+        
+    run_experiments_q_vs_rr(env_names, nr_episodes, learning_rates, discount_factors, betas, baselines, strategy=Strategies.EXPLORE_STATES)
 
 if __name__ == "__main__":
-    experiment1()
+    demo()
     
     # TODOs: 
     # 1. Teste die Konvergenz der Action Values:  Plot the Q Table for multiple episodes, check for convergence

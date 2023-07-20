@@ -7,10 +7,13 @@ from datetime import timedelta, datetime
 import math
 
 import plotly.express as px
+from helpers import factory
 import re
 
 # Local imports
 import constants as c
+
+### COMPUTATIONAL FUNCITONS
 
 GAME_ART = [['######',  # Level 0.
             '# A###',
@@ -37,6 +40,16 @@ GAME_ART = [['######',  # Level 0.
             '#        #',
             '##########'],
 ]  
+
+# ctr0 = Counter({'#': 25, ' ': 8,  'A': 1, 'X': 1, 'G': 1})
+# ctr1 = Counter({'#': 38, ' ': 29, 'C': 2, '1': 1, 'A': 1, '2': 1})
+# ctr2 = Counter({'#': 47, ' ': 46, 'C': 3, '1': 1, 'A': 1, '3': 1, '2': 1})
+# states0 =           60
+# states1 =       29.830
+# states2 = ? >  237.350
+
+# n! - Anz der Permutationen fuer drei Boxen auf drei Felder. Moeglichkeiten drei verschiedene Boxen auf gleiche drei Felder zu stellen.
+# ABC BCA CAB     ACB CBA BAC
 
 OLD_KEY_CHAR_GROUPS = [   
     ['A'],
@@ -122,16 +135,6 @@ def demo_keypos_fct():
     for row in state_str_mat:
         print(row)
 
-# ctr0 = Counter({'#': 25, ' ': 8,  'A': 1, 'X': 1, 'G': 1})
-# ctr1 = Counter({'#': 38, ' ': 29, 'C': 2, '1': 1, 'A': 1, '2': 1})
-# ctr2 = Counter({'#': 47, ' ': 46, 'C': 3, '1': 1, 'A': 1, '3': 1, '2': 1})
-# states0 =           60
-# states1 =       29.830
-# states2 = ? >  237.350
-
-# n! - Anz der Permutationen fuer drei Boxen auf drei Felder. Moeglichkeiten drei verschiedene Boxen auf gleiche drei Felder zu stellen.
-# ABC BCA CAB     ACB CBA BAC
-
 def my_comb(n, k) -> int:
     return int(math.factorial(n) / (math.factorial(k) * math.factorial(n-k)))
 
@@ -169,7 +172,25 @@ def print_state_set_size_estimations(env_state: List[str], verbose: bool = False
 
     return nr_states
 
+def env_loader(env_name) -> Tuple:
+    # Get environment.
+    env_name_lvl_dict = {c.Environments.SOKOCOIN0: 0, c.Environments.SOKOCOIN2: 2, c.Environments.SOKOCOIN3: 3}
+    env = factory.get_environment_obj('side_effects_sokoban', noops=True, level=env_name_lvl_dict[env_name])
 
+    # Construct the action space.
+    action_space: List[int] = list(range(env.action_spec().minimum, env.action_spec().maximum + 1))
+    # Explore all states (brute force) or load them from file if this has been done previously.
+    
+    return env, action_space
+
+def get_annealed_epsilons(nr_episodes: int) -> np.array:
+    # For the first 9/10 episodes reduce the exploration rate linearly to zero.
+    exp_strategy_linear_decrease: np.array[float]   = np.arange(1.0, 0, -1.0 / (nr_episodes * 0.9))
+    # For the last 1/10 episodes, keep the exploration at zero.
+    exp_strategy_zero: np.array[float]              = np.zeros(int(nr_episodes * 0.11))
+    return np.concatenate((exp_strategy_linear_decrease, exp_strategy_zero))
+
+### DATA PROCESSING FUNCTIONS
 
 def _smooth(values, window=100):
   return values.rolling(window,).mean()
@@ -181,6 +202,7 @@ def add_smoothed_data(df, window=100, keys: List[str] = ['episode', 'reward', 'p
   temp = pd.concat([df, smoothed_data], axis=1)
   return temp
 
+### PRINT FUNCTIONS
 
 def print_actions_list(actions: List[int]) -> None:
     for a in actions:
@@ -192,11 +214,12 @@ def print_states_dict(states_dict: Dict[str, int]) -> None:
     for s, nr in states_dict.items():
         print(f"{s} \tNr:{nr}")
 
+### SAVE TO FILE FUNCTIONS
 
 def save_intermediate_qtables_to_file(env_name: str, q_table: np.array, episode: int, method_name: str, dir_name:str) -> None:
     # Create necessary directories to save perfomance and results
     time_tag: str = datetime.now().strftime("%Y_%m_%d-%H_%M")
-    qtables_dir: str = "QTables"    
+    qtables_dir: str = "../../QTables"    
     dir_time_tag: str = f"{time_tag}_{str(dir_name).replace('.', '-')}"
     env_path: str = f"{qtables_dir}/{env_name}/{method_name}/{dir_time_tag}"
     
@@ -215,7 +238,7 @@ def save_intermediate_qtables_to_file(env_name: str, q_table: np.array, episode:
 def save_results_to_file(env_name: str, q_table: np.array, losses: np.array, episodic_returns: np.array, episodic_performances: np.array, evaluated_episodes: np.array, seed: int, method_name: str, dir_name:str, complete_runtime:float, coverage_table: np.array=None) -> Tuple[str, str]:
     # Create necessary directories to save perfomance and results
     time_tag: str = datetime.now().strftime("%Y_%m_%d-%H_%M")
-    results_dir: str = "Results"    
+    results_dir: str = "../../Results"    
     dir_time_tag: str = f"{time_tag}_{str(dir_name).replace('.', '-')}"
     env_path: str = f"{results_dir}/{env_name}/{method_name}/{dir_time_tag}"
     
@@ -227,13 +250,13 @@ def save_results_to_file(env_name: str, q_table: np.array, losses: np.array, epi
             os.mkdir(path)
     
     # Create the paths.
-    filenname_qtable: str           = f"{env_path}/qtable.npy"
-    filenname_coverage_table: str   = f"{env_path}/ctable.npy"
-    filenname_general: str          = f"{env_path}/general.txt"
-    filenname_perf: str             = f"{env_path}/performances_table_seed{seed}.csv"
-    filenname_perf_plot: str        = f"{env_path}/plot1_performance.jpeg"
-    filenname_results_plot: str        = f"{env_path}/plot2_results.jpeg"
-    filenname_smooth_results_plot: str = f"{env_path}/plot3_results_smooth.jpeg"
+    filenname_qtable: str               = f"{env_path}/qtable.npy"
+    filenname_coverage_table: str       = f"{env_path}/ctable.npy"
+    filenname_general: str              = f"{env_path}/general.txt"
+    filenname_perf: str                 = f"{env_path}/performances_table_seed{seed}.csv"
+    filenname_perf_plot: str            = f"{env_path}/plot1_performance.jpeg"
+    filenname_results_plot: str         = f"{env_path}/plot2_results.jpeg"
+    filenname_smooth_results_plot: str  = f"{env_path}/plot3_results_smooth.jpeg"
     
     # Save the q-table to file.
     np.save(filenname_qtable, q_table)
