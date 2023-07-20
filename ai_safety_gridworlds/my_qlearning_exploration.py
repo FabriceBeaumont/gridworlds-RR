@@ -13,6 +13,10 @@ from enum import Enum
 import multiprocessing
 from functools import partial
 
+import warnings
+warnings.filterwarnings("ignore")
+
+
 class Baselines(Enum):
     STARTING_STATE_BASELINE: str    = "Starting"
     INACTION_BASELINE: str          = "Inaction"
@@ -108,9 +112,8 @@ def preprocessing_explore_all_states(env, action_space: List[int], env_name: str
         structured_array = np.load(filenname_states, allow_pickle=True)
         runtime = np.load(filenname_runtime, allow_pickle=True)
 
-        #TODO: Uncomment if initialization was complete
-        int_states_dict = None #np.load(filenname_states_reverse)                        # DEBUGGING DATA:
-        states_actions_dict = None #np.load(filenname_actions)                           # DEBUGGING DATA:
+        int_states_dict = np.load(filenname_states_reverse, allow_pickle=True) # DEBUGGING DATA:
+        states_actions_dict = np.load(filenname_actions, allow_pickle=True)    # DEBUGGING DATA:
         
         return structured_array.item(), int_states_dict, states_actions_dict
     else:
@@ -286,8 +289,12 @@ def run_q_learning(env_name='sokocoin2', nr_episodes: int = 9000, learning_rate:
     # Save the accumulated losses of the evaluated episodes.
     losses: np.array                    = np.zeros(loss_frequency)
     
-    # Initialize the exploration epsilon.
-    exploration_epsilons: np.array[float] = np.arange(1.0, 0, -1.0 / nr_episodes)
+    # Initialize the exploration epsilon
+    # For the first 9/10 episodes reduce the exploration rate linearly to zero.
+    exp_strategy_linear_decrease: np.array[float]   = np.arange(1.0, 0, -1.0 / (nr_episodes * 0.9))
+    # For the last 1/10 episodes, keep the exploration at zero.
+    exp_strategy_zero: np.array[float]              = np.zeros(int(nr_episodes * 0.11))
+    exploration_epsilons: np.array[float] = np.concatenate((exp_strategy_linear_decrease, exp_strategy_zero))
         
     _last_state_id: int = None
     _last_action: int   = None
@@ -380,8 +387,7 @@ def run_q_learning(env_name='sokocoin2', nr_episodes: int = 9000, learning_rate:
     return episodic_returns, episodic_performances
 
 # RR-Learning implementation
-def run_rr_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq: int = None, beta: float = 10, \
-    baseline_setting: Baselines = Baselines.STARTING_STATE_BASELINE, discount_factor: float = 0.99, learning_rate: float = 1.0, seed: int = 42):
+def run_rr_learning(env_name='sokocoin2', nr_episodes: int = 9000, learning_rate: float = 1., discount_factor: float = .99, beta: float = 10, baseline_setting: Baselines = Baselines.STARTING_STATE_BASELINE, set_loss_freq: int = None, seed: int = 42):
     
     def get_best_action(q_table: np.array, state_id: int) -> int:
         # Get the best action according to the q-values for every possible action in the current state.
@@ -460,11 +466,16 @@ def run_rr_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq
     losses: np.array                    = np.zeros(loss_frequency)
     
     # Initialize the exploration epsilon
-    exploration_epsilons: np.array[float] = np.arange(1.0, 0, -1.0 / nr_episodes)
+    # For the first 9/10 episodes reduce the exploration rate linearly to zero.
+    exp_strategy_linear_decrease: np.array[float]   = np.arange(1.0, 0, -1.0 / (nr_episodes * 0.9))
+    # For the last 1/10 episodes, keep the exploration at zero.
+    exp_strategy_zero: np.array[float]              = np.zeros(int(nr_episodes * 0.11))
+    exploration_epsilons: np.array[float] = np.concatenate((exp_strategy_linear_decrease, exp_strategy_zero))
         
     _last_state_id: int = None
     _last_action: int   = None
     _last_episode_start_time: float = time.time()
+    _all_episodes_rt_sum: int = 0
 
     # Prepare the inaction baseline. Therefore, simulate doing nothing (for all avaliable time steps).    
     timestep = env.reset()
@@ -597,38 +608,25 @@ def run_rr_learning(env_name='sokocoin2', nr_episodes: int = 9000, set_loss_freq
     return episodic_returns, episodic_performances
 
 
+def run_experiments_q_vs_rr(env_names: List[str], env_sizes: List[int], nr_episodes: int, learning_rates: List[float], discount_factors: List[float], betas: List[float], baselines: List[Baselines]):
+    for env_name, _ in zip(env_names, env_sizes):
+        for lr in learning_rates:
+            for discount in discount_factors:
+                print(f"Current settings: {env_name}, E{nr_episodes}, lr{lr}, discount{discount}")                
+                for beta in betas:
+                    for bl in baselines:
+                        run_rr_learning(env_name=env_name, nr_episodes=nr_episodes, learning_rate=lr, beta=beta, baseline_setting=bl)
+
+def experiment1():
+    env_names                       = ['sokocoin0', 'sokocoin2']
+    env_state_set_size_estimates    = [100, 47648]
+    nr_episodes: int                = 10000
+    learning_rates: List[float]     = [.1]
+    discount_factors: List[float]   = [0.99]
+    betas: List[float]              = [0.1, 3, 100]
+    baselines: np.array            = np.array([Baselines.STARTING_STATE_BASELINE, Baselines.INACTION_BASELINE, Baselines.STEPWISE_INACTION_BASELINE])
+
+    run_experiments_q_vs_rr(env_names, env_state_set_size_estimates, nr_episodes, learning_rates, discount_factors, betas, baselines)
+
 if __name__ == "__main__":
-    betas1 = np.array([0.1, 3, 100], dtype=float)
-    # betas2 = np.array([0.3, 1, 10, 300], dtype=float)
-    base_lines = np.array([Baselines.STARTING_STATE_BASELINE, Baselines.INACTION_BASELINE, Baselines.STEPWISE_INACTION_BASELINE])
-    env_names = ['sokocoin0', 'sokocoin2', 'sokocoin3']
-    nr_episodes = 9000
-    discount_factors = [0.99, 1] # TODO: Test undiscounted setting for 1.
-    learning_rates = [1.0, 0.1]
-    
-    # run_rr_learning(baseline_setting=Baselines.STEPWISE_INACTION_BASELINE)
-    for env in env_names:
-        print(f"Current learning: {env}, E100")
-        run_q_learning(env_name=env, nr_episodes=100)
-    # run_experiment()
-
-
-    # TODOS: Run by FB:
-    # TODO: First: Rename the AllStates files to match the new naming convention for the read in.
-    # TODO: Increase MAX NR OF ACTIONS only if needed. Used 100=sokocoin2
-    # for beta in betas1:
-    #     for baseline in base_lines:
-    #         print(f"Current learning: {env_name}, E{nr_episodes}, B{beta}, BL{baseline}")
-    #         run_rr_learning(env_name=env_name, nr_episodes=nr_episodes, beta=beta, baseline_setting=baseline)
-
-    # with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
-    #     p.starmap(run_rr_learning, args)
-
-
-    # TODO: 
-    # 1. Teste die Konvergenz der Action Values:  Plot the Q Table for multiple episodes, check for convergence
-    # 2. Experiments: Compute AllStates for all environments
-    # 3. Update the epsilon strategy
-    # 4. Evaluate the constant-learning rate strategy. Therefore run for all Baselines, for beta [0.1, 3, 100] on sokocoin2
-    # 5. Evaluate a dynamic -learning rate strategy (simulated annealing - constant change rate from 1.0 to 0.1). Therefore run for all Baselines, for beta [0.1, 3, 100] on sokocoin2    
-    # 6. Do sth with the dicsount factor? E.g. undiscounted for 1.0
+    experiment1()
