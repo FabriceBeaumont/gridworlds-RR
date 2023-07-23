@@ -220,12 +220,13 @@ def generate_dir_name(settings: Dict[c.PARAMETRS, str]) -> str:
     # Extract the parameter settings.
     nr_episodes: int        = settings.get(c.PARAMETRS.NR_EPISODES)
     baseline: str           = settings.get(c.PARAMETRS.BASELINE)
-    beta: float             = settings.get(c.PARAMETRS.BETA)    
+    beta: float             = settings.get(c.PARAMETRS.BETA)
+    strategy: str           = settings.get(c.PARAMETRS.STATE_SET_STRATEGY)
 
     dir_name: str = f"e{nr_episodes}_b{beta}"
     if baseline is not None:
         dir_name += f"_bl{baseline}"
-    return dir_name
+    return dir_name + f"_S{strategy[:2]}"
     
 def save_intermediate_qtables_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, episode: int, method_name: str) -> None:
     # Extract the parameter settings.

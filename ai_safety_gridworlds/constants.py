@@ -35,7 +35,6 @@ StateSpaceSizeEstimations: Dict[str, int] = {
     Environments.SOKOCOIN2.value: 47648,
     Environments.SOKOCOIN3.value: 6988675,
 }
-#TODO: sparse matrix for qtable/cable?
 
 ACTIONS: Dict[int, str] = {
     0: "Up",
@@ -44,7 +43,6 @@ ACTIONS: Dict[int, str] = {
     3: "Right",
     4: "NOOP"
 }
-
 
 # General expected scrope of the experiments:
 env_names                       = [Environments.SOKOCOIN0, Environments.SOKOCOIN2]    # , Environments.SOKOCOIN3
