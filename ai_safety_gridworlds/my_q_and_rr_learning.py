@@ -550,50 +550,33 @@ def run_experiments_q_vs_rr(env_names: List[Baselines], nr_episodes: int, learni
                         run_rr_learning(settings, save_coverage_table=save_coverage_table)
 
 def demo():
-    env_names                       = [Environments.SOKOCOIN0, Environments.SOKOCOIN2]
-    nr_episodes: int                = 100
+    env_names: Environments         = [Environments.SOKOCOIN0, Environments.SOKOCOIN2]
+    nr_episodes: int                = 500
     learning_rates: List[float]     = [.1]
     discount_factors: List[float]   = [0.99]
     betas: List[float]              = [0.1]
-    baselines: np.array             = np.array([Baselines.STARTING_STATE_BASELINE, Baselines.INACTION_BASELINE, Baselines.STEPWISE_INACTION_BASELINE])
+    baselines: np.array[Baselines]  = np.array([Baselines.STARTING_STATE_BASELINE, Baselines.INACTION_BASELINE, Baselines.STEPWISE_INACTION_BASELINE])
     
     # Perform the learning using an estimation of the state space size.
-    run_experiments_q_vs_rr(env_names, nr_episodes, learning_rates, discount_factors, betas, baselines, strategy=Strategies.ESTIMATE_STATES, save_coverage_table=False)
+    run_experiments_q_vs_rr(env_names, nr_episodes, learning_rates, discount_factors, betas, baselines, strategy=Strategies.ESTIMATE_STATES, save_coverage_table=True)
     # Perform the learning using an preprocessed exploration of the state space size.
-    run_experiments_q_vs_rr(env_names, nr_episodes, learning_rates, discount_factors, betas, baselines, strategy=Strategies.EXPLORE_STATES, save_coverage_table=False)
+    run_experiments_q_vs_rr(env_names, nr_episodes, learning_rates, discount_factors, betas, baselines, strategy=Strategies.EXPLORE_STATES, save_coverage_table=True)
     
 
-def experiment1_base_estimate():
-    env_names                       = [Environments.SOKOCOIN0.value, Environments.SOKOCOIN2]
+def experiment_complete_estimate():
+    env_names: Environments         = [Environments.SOKOCOIN0, Environments.SOKOCOIN2]
     nr_episodes: int                = 10000
-    learning_rates: List[float]     = [.1]
-    discount_factors: List[float]   = [0.99]
+    learning_rates: List[float]     = [.1, .5]
+    discount_factors: List[float]   = [0.99, 1.]
     betas: List[float]              = [0.1, 3, 100]
-    baselines: np.array             = np.array([Baselines.STARTING_STATE_BASELINE, Baselines.INACTION_BASELINE, Baselines.STEPWISE_INACTION_BASELINE])
-        
-    run_experiments_q_vs_rr(env_names, nr_episodes, learning_rates, discount_factors, betas, baselines, strategy=Strategies.ESTIMATE_STATES)
-
-
-def experiment2_base_estimate():
-    env_names                       = [Environments.SOKOCOIN0.value, Environments.SOKOCOIN2]
-    nr_episodes: int                = 10000
-    learning_rates: List[float]     = [.1]
-    discount_factors: List[float]   = [0.99]
-    betas: List[float]              = [0.1, 3, 100]
-    baselines: np.array             = np.array([Baselines.STARTING_STATE_BASELINE, Baselines.INACTION_BASELINE, Baselines.STEPWISE_INACTION_BASELINE])
+    baselines: np.array[Baselines]  = np.array([Baselines.STARTING_STATE_BASELINE, Baselines.INACTION_BASELINE, Baselines.STEPWISE_INACTION_BASELINE])
         
     run_experiments_q_vs_rr(env_names, nr_episodes, learning_rates, discount_factors, betas, baselines, strategy=Strategies.EXPLORE_STATES)
 
 if __name__ == "__main__":
     demo()
     
-    # TODOs: 
-    # X. check qtable heatmaps # 1. Teste die Konvergenz der Action Values:  Plot the Q Table for multiple episodes, check for convergence
-    # X. Debugging - check Baseline Compttation and qual.
-
-
-
-
-    
-    # 4. Evaluate the constant-learning rate strategy. Therefore run for all Baselines, for beta [0.1, 3, 100] on sokocoin2
-    # 5. Evaluate a dynamic -learning rate strategy (simulated annealing - constant change rate from 1.0 to 0.1). Therefore run for all Baselines, for beta [0.1, 3, 100] on sokocoin2
+    # TODO: Run Debugging - check 
+    # q table construction,
+    # c table constrution
+    # baseline comptation.
