@@ -5,7 +5,7 @@ from enum import Enum
 
 # Maximum number of actions that can be performed by the agend during the states exploration in the preprocessing step.
 MAX_NR_ACTIONS: int = 100
-
+RESULTS_DIR: str    = "../../Results"    
 
 class Strategies(Enum):
     ESTIMATE_STATES: str   = "Estimate"
@@ -18,8 +18,17 @@ class Baselines(Enum):
 
 class Environments(Enum):
     SOKOCOIN0: str = "sokocoin0"
-    SOKOCOIN2: str = "sokocoin1"
-    SOKOCOIN3: str = "sokocoin2"
+    SOKOCOIN2: str = "sokocoin2"
+    SOKOCOIN3: str = "sokocoin3"
+
+class PARAMETRS(Enum):
+    ENV_NAME: str           = "Env Name"
+    NR_EPISODES: str        = "Nr Episodes"
+    LEARNING_RATE: str      = "Learning Rate"
+    STATE_SET_STRATEGY: str = "States Set Strategy"
+    BASELINE: str           = "Baseline"
+    Q_DISCOUNT: str         = "Q Discount"
+    BETA: str               = "Beta"
 
 StateSpaceSizeEstimations: Dict[str, int] = {
     Environments.SOKOCOIN0: 100,

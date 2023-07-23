@@ -216,7 +216,22 @@ def print_states_dict(states_dict: Dict[str, int]) -> None:
 
 ### SAVE TO FILE FUNCTIONS
 
-def save_intermediate_qtables_to_file(env_name: str, q_table: np.array, episode: int, method_name: str, dir_name:str) -> None:
+def generate_dir_name(settings: Dict[c.PARAMETRS, str]) -> str:
+    # Extract the parameter settings.
+    nr_episodes: int        = settings.get(c.PARAMETRS.NR_EPISODES)
+    baseline: str           = settings.get(c.PARAMETRS.BASELINE)
+    beta: float             = settings.get(c.PARAMETRS.BETA)    
+
+    dir_name: str = f"e{nr_episodes}_b{beta}"
+    if baseline is not None:
+        dir_name += f"_bl{baseline}"
+    return dir_name
+    
+def save_intermediate_qtables_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, episode: int, method_name: str) -> None:
+    # Extract the parameter settings.
+    env_name: str           = settings.get(c.PARAMETRS.ENV_NAME)
+    dir_name: str = generate_dir_name(settings)
+    
     # Create necessary directories to save perfomance and results
     time_tag: str = datetime.now().strftime("%Y_%m_%d-%H_%M")
     qtables_dir: str = "../../QTables"    
@@ -235,13 +250,24 @@ def save_intermediate_qtables_to_file(env_name: str, q_table: np.array, episode:
     # Save the q-table to file.
     np.save(filenname_qtable_e, q_table)
 
-def save_results_to_file(env_name: str, q_table: np.array, losses: np.array, episodic_returns: np.array, episodic_performances: np.array, evaluated_episodes: np.array, seed: int, method_name: str, dir_name:str, complete_runtime:float, coverage_table: np.array=None) -> Tuple[str, str]:
+def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, losses: np.array, episodic_returns: np.array, episodic_performances: np.array, evaluated_episodes: np.array, seed: int, method_name: str, complete_runtime:float, coverage_table: np.array=None) -> Tuple[str, str]:
+    # Extract the parameter settings.
+    env_name: str           = settings.get(c.PARAMETRS.ENV_NAME)
+    nr_episodes: int        = settings.get(c.PARAMETRS.NR_EPISODES)
+    # Learning rate (alpha).
+    learning_rate: float    = settings.get(c.PARAMETRS.LEARNING_RATE)
+    strategy: str           = settings.get(c.PARAMETRS.STATE_SET_STRATEGY)
+    
+    baseline: str           = settings.get(c.PARAMETRS.BASELINE)
+    beta: float             = settings.get(c.PARAMETRS.BETA)   
+    dir_name: str = generate_dir_name(settings)
+
     # Create necessary directories to save perfomance and results
     time_tag: str = datetime.now().strftime("%Y_%m_%d-%H_%M")
-    results_dir: str = "../../Results"    
+    results_dir: str = c.RESULTS_DIR
     dir_time_tag: str = f"{time_tag}_{str(dir_name).replace('.', '-')}"
     env_path: str = f"{results_dir}/{env_name}/{method_name}/{dir_time_tag}"
-    
+
     # Create all necessary directories.
     path_names = env_path.split("/")
     for i, _ in enumerate(path_names):
@@ -261,7 +287,8 @@ def save_results_to_file(env_name: str, q_table: np.array, losses: np.array, epi
     # Save the q-table to file.
     np.save(filenname_qtable, q_table)
     # Save the q-table to file.
-    np.save(filenname_coverage_table, coverage_table)
+    if coverage_table is not None: 
+        np.save(filenname_coverage_table, coverage_table)
     # Save general information, including the runtime to file.    
     general_df = pd.DataFrame({'Method': [method_name],
                                'Runtime': [timedelta(seconds=complete_runtime)]})
@@ -273,8 +300,11 @@ def save_results_to_file(env_name: str, q_table: np.array, losses: np.array, epi
     results_df_with_smooth = add_smoothed_data(results_df)    
     results_df_with_smooth.to_csv(filenname_perf)
 
+    # Prepare a subtitle containing the parameter settings.
+    sub_title: str = f"<br><sup>Learning rate: {learning_rate}{f', Beta: {beta}' if beta is not None else ''}{f', Baseline: {baseline}' if beta is not None else ''}, State set strategy {strategy}</sup>"
     # Plot the performance data and store it to image.
-    fig = px.line(results_df, x='episode', y=['reward', 'performance'], title=f"Performances - {env_name}")    
+    title: str = f"Performances - '{env_name}'\n{sub_title}"
+    fig = px.line(results_df, x='episode', y=['reward', 'performance'], title=title)
     fig.write_image(filenname_perf_plot)
     
     # Standardize the data and plot it.
@@ -282,11 +312,13 @@ def save_results_to_file(env_name: str, q_table: np.array, losses: np.array, epi
     results_df_with_smooth[cols_to_standardize] = results_df_with_smooth[cols_to_standardize].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
 
     # Plot the standardized performance data and store it to image.
-    fig = px.line(results_df_with_smooth, x='episode', y=['reward', 'performance', 'loss'], title=f"Standardized results - {env_name}")    
+    title: str = f"Standardized results - '{env_name}'\n{sub_title}"
+    fig = px.line(results_df_with_smooth, x='episode', y=['reward', 'performance', 'loss'], title=title)
     fig.write_image(filenname_results_plot)
 
     # Plot the standardized smoothed performance data and store it to image.
-    fig = px.line(results_df_with_smooth, x='episode_smooth', y=['reward_smooth', 'performance_smooth', 'loss_smooth'], title=f"Smoothed results - {env_name}")
+    title: str = f"Smoothed results - '{env_name}'\n{sub_title}"
+    fig = px.line(results_df_with_smooth, x='episode_smooth', y=['reward_smooth', 'performance_smooth', 'loss_smooth'], title=title)
     fig.write_image(filenname_smooth_results_plot)
 
     print("Saving to file complete.\n\n")

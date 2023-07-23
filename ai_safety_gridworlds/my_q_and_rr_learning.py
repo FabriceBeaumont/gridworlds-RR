@@ -2,7 +2,7 @@
     Notably, the q-table is set up as a np.array. To known how large it needs to be, 
     an estimation of the size of the states set is used.
 """
-from typing import List, Dict, Set, Tuple
+from typing import List, Dict, Set, Tuple, Any
 import warnings
 warnings.filterwarnings("ignore")
 from datetime import timedelta
@@ -14,7 +14,7 @@ from helpers import factory
 
 # Local imports
 import helper_fcts as hf
-from constants import Baselines, Environments, Strategies, StateSpaceSizeEstimations, MAX_NR_ACTIONS
+from constants import Baselines, Environments, Strategies, PARAMETRS, StateSpaceSizeEstimations, MAX_NR_ACTIONS
 
 class StateSpaceBuilder():
     
@@ -148,7 +148,7 @@ class StateSpaceBuilder():
 
 
 # Q-Learning implementation.
-def run_q_learning(env_name: str, states_set_size: int, nr_episodes: int, learning_rate: float = .1, strategy: Strategies = Strategies.ESTIMATE_STATES, q_discount: float = .99, set_loss_freq: int = None, seed: int = 42, verbose: bool = False):
+def run_q_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, seed: int = 42, verbose: bool = False):
 
     def get_best_action(q_table: np.array, state_id: int) -> int:
         # Get the best action according to the q-values for every possible action in the current state.
@@ -163,24 +163,28 @@ def run_q_learning(env_name: str, states_set_size: int, nr_episodes: int, learni
         else:
             return get_best_action(q_table, state_id)
 
+    # Extract the parameter settings.
+    env_name        = settings.get(PARAMETRS.ENV_NAME)
+    nr_episodes     = settings.get(PARAMETRS.NR_EPISODES)
+    # Learning rate (alpha).
+    learning_rate   = settings.get(PARAMETRS.LEARNING_RATE)
+    strategy        = settings.get(PARAMETRS.STATE_SET_STRATEGY)
+    # Time discount/ costs for each time step. Aka 'gamma'.
+    q_discount : float = settings.get(PARAMETRS.Q_DISCOUNT)
+        
+    # Initialize the agent:
+    method_name: str = "QLearning"    
+    # Initialization value of the q-learning q-table.
+    q_init_value: float = 0.0
+    
+    print(f">>RUN: {method_name}: env-{env_name}, e{nr_episodes}, lr{learning_rate}, {strategy}, d{q_discount}")    
+    
     start_time: float = time.time()    
     # Load the environment.    
     env, action_space = hf.env_loader(env_name)
     states_set = StateSpaceBuilder(env_name=env_name, strategy=strategy, env=env, action_space=action_space)
     np.random.seed(seed)
-        
-    # Initialize the agent:
-    method_name: str = "QLearning"
-    # Learning rate (alpha).
-    learning_rate: float = learning_rate
-    # Initialization value of the q-learning q-table.
-    q_init_value: float = 0.0
-    # Time discount/ costs for each time step. Aka 'gamma'.
-    q_discount: float = q_discount    
-    # Save the results (including the runtime) to file.
-    dir_name: str = f"e{nr_episodes}_d{q_discount}"
-    print(f">>RUN: {method_name}: env-{env_name.value}, e{nr_episodes}, lr{learning_rate}, {strategy.value}, d{q_discount}")    
-
+    
     # Store the Q-table.
     q_table: np.array = q_init_value * np.ones((states_set.get_nr_states(), len(action_space)))
 
@@ -285,14 +289,13 @@ def run_q_learning(env_name: str, states_set_size: int, nr_episodes: int, learni
     # Measure the runtime.
     runtime = time.time() - start_time
     # Print line to offset the '\r'-progress prints.
-    print()
-    hf.save_results_to_file(env_name.value, q_table, losses, episodic_returns, episodic_performances, evaluated_episodes, seed, method_name=method_name,  dir_name=dir_name, complete_runtime=runtime)
+    print()    
+    hf.save_results_to_file(settings, q_table, losses, episodic_returns, episodic_performances, evaluated_episodes, seed, method_name=method_name, complete_runtime=runtime)
 
     return episodic_returns, episodic_performances
 
 # RR-Learning implementation.
-def run_rr_learning(env_name: str, states_set_size: int, nr_episodes: int, learning_rate: float = .1, discount_factor: float = .99, beta: float = 10, \
-    baseline_setting: Baselines = Baselines.STARTING_STATE_BASELINE, strategy: Strategies = Strategies.ESTIMATE_STATES, set_loss_freq: int = None, seed: int = 42, verbose: bool = False):
+def run_rr_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, seed: int = 42, verbose: bool = False, save_coverage_table: bool = True):
         
     def get_best_action(q_table: np.array, state_id: int) -> int:
         # Get the best action according to the q-values for every possible action in the current state.
@@ -329,6 +332,24 @@ def run_rr_learning(env_name: str, states_set_size: int, nr_episodes: int, learn
 
         return _baseline_state_id
 
+    # Extract the parameter settings.
+    env_name: str           = settings.get(PARAMETRS.ENV_NAME)
+    nr_episodes: int        = settings.get(PARAMETRS.NR_EPISODES)
+    # Learning rate (alpha).
+    learning_rate: float    = settings.get(PARAMETRS.LEARNING_RATE)
+    strategy: str           = settings.get(PARAMETRS.STATE_SET_STRATEGY)
+    # Time discount/ costs for each time step. Aka 'gamma'.    
+    q_discount: float       = settings.get(PARAMETRS.Q_DISCOUNT)
+    baseline: str           = settings.get(PARAMETRS.BASELINE)
+    beta: float             = settings.get(PARAMETRS.BETA)    
+    
+    # Initialize the agent:
+    method_name: str = "RRLearning"    
+    # Initialization value of the q-learning q-table.
+    q_init_value: float = 0.0
+    # Coverage discount.
+    c_discount: float = 1.0
+    
     start_time: float = time.time()
     
     # Load the environment.
@@ -336,25 +357,14 @@ def run_rr_learning(env_name: str, states_set_size: int, nr_episodes: int, learn
     states_set = StateSpaceBuilder(env_name=env_name, strategy=strategy, env=env, action_space=action_space)
     np.random.seed(seed)
     
-    # Initialize the agent:
-    method_name: str = "RRLearning"
-    # Learning rate (alpha).
-    learning_rate: float = learning_rate
-    # Initialization value of the q-learning q-table.
-    q_init_value: float = 0.0
-    # Time discount/ costs for each time step. Aka 'gamma'.
-    q_discount: float = discount_factor
-    # Coverage discount.
-    c_discount: float = 1.0    
-    # Create a directory name, where the (intermediate) results will be stored.
-    dir_name: str = f"e{nr_episodes}_b{beta}_bl{baseline_setting.value}"
-    print(f">>RUN: {method_name}: env-{env_name.value}, e{nr_episodes}, lr{learning_rate}, {strategy.value}, d{q_discount}, bl-{baseline_setting.value}, b{beta}")
+    print(f">>RUN: {method_name}: env-{env_name}, e{nr_episodes}, lr{learning_rate}, {strategy}, d{q_discount}, bl-{baseline}, b{beta}")
     
     # Store the Q-table.
     q_table: np.array = q_init_value * np.ones((states_set.get_nr_states(), len(action_space)), dtype=float)
     # Store the coverage values (reachability). 
     # Entrz 'ij' gives the coverage of state 'j' when starting from state 'i'. ({From_states}x{To_states})
-    coverage_table: np.array = np.eye(states_set_size, dtype=np.float32)
+    states_set_size_estimate = StateSpaceSizeEstimations[env_name]
+    c_table: np.array = np.eye(states_set_size_estimate, dtype=np.float32)
 
     # Initialize datastructures for the evaluation.
     # Every 'nr_episodes/loss_frequency' episode, save the last episodic returns and performance, and the accumulated loss.
@@ -383,7 +393,7 @@ def run_rr_learning(env_name: str, states_set_size: int, nr_episodes: int, learn
     # Prepare the inaction baseline. Therefore, simulate doing nothing (for all avaliable time steps).    
     timestep = env.reset()
     inaction_baseline_states: np.array = None
-    if baseline_setting == Baselines.INACTION_BASELINE:
+    if baseline == Baselines.INACTION_BASELINE.value:
         print(f"Initializing all inaction baseline states by simulating the environment when using the noop-action only (for at most {MAX_NR_ACTIONS} steps)...", end="")
         tmp_states_ids_lst: List[int] = []
         _actions_ctr: int = 0
@@ -445,13 +455,13 @@ def run_rr_learning(env_name: str, states_set_size: int, nr_episodes: int, learn
                 
                 # UPDATE REACHABILITIES.
                 # Calculate the coverage delta. 'alpha * [c_discount + V(s_old) - V(s_new)]'
-                c_delta = c_discount + coverage_table[:, _last_state_id] - coverage_table[:, _current_state_id]
+                c_delta = c_discount + c_table[:, _last_state_id] - c_table[:, _current_state_id]
                 # Update the q-values. 'V(s_new) = V(s_new) + alpha * [c_discount + V(s_old) - V(s_new)]'
-                coverage_table[:, _current_state_id] += learning_rate * c_delta
+                c_table[:, _current_state_id] += learning_rate * c_delta
 
                 # CALCULATE RELATIVE REACHABILITY. - first formula page 7 in paper "Peanalizing.."
                 # Compute the absolute reachability of all other states from the current state, compared to from the baseline state.
-                diff: np.array = coverage_table[_baseline_state_id, :] - coverage_table[_current_state_id, :]                
+                diff: np.array = c_table[_baseline_state_id, :] - c_table[_current_state_id, :]                
                 diff[diff<0] = 0
                 # Average this reachability (clipped to non-negative values) to get the relative reachability.
                 rr: float = np.mean(diff) # TODO: Multiply with state amount error factor?
@@ -497,32 +507,47 @@ def run_rr_learning(env_name: str, states_set_size: int, nr_episodes: int, learn
 
         # Save the intermediate q-tables for further research.
         if episode % 1000 == 0:
-            hf.save_intermediate_qtables_to_file(env_name, q_table, episode, method_name, dir_name)
+            hf.save_intermediate_qtables_to_file(settings, q_table, episode, method_name)
 
     runtime = time.time() - start_time
     # Print line to offset the '\r'-progress prints.
     print()
-    hf.save_results_to_file(env_name.value, q_table, losses, episodic_returns, episodic_performances, evaluated_episodes, seed, method_name=method_name, dir_name=dir_name, complete_runtime=runtime, coverage_table=coverage_table)
+    if not save_coverage_table:
+        c_table = None
+    hf.save_results_to_file(settings, q_table, losses, episodic_returns, episodic_performances, evaluated_episodes, seed, method_name=method_name, complete_runtime=runtime, coverage_table=c_table)
 
     return episodic_returns, episodic_performances
 
+def create_settings_dict(env_name: str, nr_episodes: int, learning_rate: float = None, state_set_strategy: str = None, q_discount: float = None, baseline: str = None, beta: float = None) -> Dict[PARAMETRS, str]:
+    settings: Dict[PARAMETRS, Any] = dict()
+
+    settings[PARAMETRS.ENV_NAME]            = env_name
+    settings[PARAMETRS.NR_EPISODES]         = nr_episodes
+    settings[PARAMETRS.LEARNING_RATE]       = learning_rate
+    settings[PARAMETRS.STATE_SET_STRATEGY]  = state_set_strategy
+    settings[PARAMETRS.BASELINE]            = baseline
+    settings[PARAMETRS.Q_DISCOUNT]          = q_discount
+    settings[PARAMETRS.BETA]                = beta
+
+    return settings
+
 # EXPERIMENTS
-def run_experiments_q_vs_rr(env_names: List[str], nr_episodes: int, learning_rates: List[float], discount_factors: List[float], betas: List[float], baselines: List[Baselines], strategy: Strategies = Strategies.ESTIMATE_STATES):
+def run_experiments_q_vs_rr(env_names: List[Baselines], nr_episodes: int, learning_rates: List[float], discount_factors: List[float], betas: List[float], baselines: List[Baselines], strategy: Strategies = Strategies.ESTIMATE_STATES, save_coverage_table: bool = True):
     print()
     nr_experiments: int = len(env_names) * len(learning_rates) * len(discount_factors)
     ctr: int = 1
     
     for n in env_names:
-        s: int = StateSpaceSizeEstimations[n]
-        
         for lr in learning_rates:
             for d in discount_factors:
-                print(f"Experiment {ctr}/{nr_experiments}: {n}, e{nr_episodes}, lr{lr}, discount{d}, state set-{strategy.value}")
-                run_q_learning(env_name=n, states_set_size=s, nr_episodes=nr_episodes, learning_rate=lr, strategy=strategy, q_discount=d)
+                print(f"Experiment {ctr}/{nr_experiments}: {n.value}, e{nr_episodes}, lr{lr}, discount{d}, state set-{strategy.value}")
+                settings = create_settings_dict(env_name=n.value, nr_episodes=nr_episodes, learning_rate=lr, state_set_strategy=strategy.value, q_discount=d)
+                run_q_learning(settings)
                 
                 for beta in betas:
                     for bl in baselines:
-                        run_rr_learning(env_name=n, states_set_size=s, nr_episodes=nr_episodes, learning_rate=lr, beta=beta, baseline_setting=bl, strategy=strategy, discount_factor=d)
+                        settings = create_settings_dict(env_name=n.value, nr_episodes=nr_episodes, learning_rate=lr, state_set_strategy=strategy.value, q_discount=d, baseline=bl.value, beta=beta)
+                        run_rr_learning(settings, save_coverage_table)
 
 def demo():
     env_names                       = [Environments.SOKOCOIN0, Environments.SOKOCOIN2]
@@ -531,11 +556,11 @@ def demo():
     discount_factors: List[float]   = [0.99]
     betas: List[float]              = [0.1]
     baselines: np.array             = np.array([Baselines.STARTING_STATE_BASELINE, Baselines.INACTION_BASELINE, Baselines.STEPWISE_INACTION_BASELINE])
-
-    # Perform the learning using an estimation of the state space size.    
-    run_experiments_q_vs_rr(env_names, nr_episodes, learning_rates, discount_factors, betas, baselines, strategy=Strategies.ESTIMATE_STATES)
+    
+    # Perform the learning using an estimation of the state space size.
+    run_experiments_q_vs_rr(env_names, nr_episodes, learning_rates, discount_factors, betas, baselines, strategy=Strategies.ESTIMATE_STATES, save_coverage_table=False)
     # Perform the learning using an preprocessed exploration of the state space size.
-    run_experiments_q_vs_rr(env_names, nr_episodes, learning_rates, discount_factors, betas, baselines, strategy=Strategies.EXPLORE_STATES)
+    run_experiments_q_vs_rr(env_names, nr_episodes, learning_rates, discount_factors, betas, baselines, strategy=Strategies.EXPLORE_STATES, save_coverage_table=False)
     
 
 def experiment1_base_estimate():
@@ -563,6 +588,12 @@ if __name__ == "__main__":
     demo()
     
     # TODOs: 
-    # 1. Teste die Konvergenz der Action Values:  Plot the Q Table for multiple episodes, check for convergence
+    # X. check qtable heatmaps # 1. Teste die Konvergenz der Action Values:  Plot the Q Table for multiple episodes, check for convergence
+    # X. Debugging - check Baseline Compttation and qual.
+
+
+
+
+    
     # 4. Evaluate the constant-learning rate strategy. Therefore run for all Baselines, for beta [0.1, 3, 100] on sokocoin2
     # 5. Evaluate a dynamic -learning rate strategy (simulated annealing - constant change rate from 1.0 to 0.1). Therefore run for all Baselines, for beta [0.1, 3, 100] on sokocoin2
