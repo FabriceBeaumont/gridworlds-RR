@@ -312,15 +312,15 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, s
 
     def get_the_baseline_state_id(_previous_baseline_id: int, _actions_so_far: List[int] = None) -> int:        
         # For the starting state baseline, nothing has to be computed. It is already set.
-        if baseline_setting == Baselines.STARTING_STATE_BASELINE:
+        if baseline == Baselines.STARTING_STATE_BASELINE.value:
             _baseline_state_id = _previous_baseline_id
 
         # For the inaction baseline, get the already simulated state after '_actions_so_far_ctr' many inactions.
-        if baseline_setting == Baselines.INACTION_BASELINE:
+        if baseline == Baselines.INACTION_BASELINE.value:
             _baseline_state_id = inaction_baseline_states[len(_actions_so_far) - 1]
 
         # For the stepwise inaction baseline, simulate doing the actions as before, but choosing the NOOP action for the last step.
-        if baseline_setting == Baselines.STEPWISE_INACTION_BASELINE:                    
+        if baseline == Baselines.STEPWISE_INACTION_BASELINE.value:
             # Up to the last time step, simulate the environment as before.
             env_simulation, _ = hf.env_loader(env_name)
             for a in _actions_so_far[:1]:                        
@@ -547,7 +547,7 @@ def run_experiments_q_vs_rr(env_names: List[Baselines], nr_episodes: int, learni
                 for beta in betas:
                     for bl in baselines:
                         settings = create_settings_dict(env_name=n.value, nr_episodes=nr_episodes, learning_rate=lr, state_set_strategy=strategy.value, q_discount=d, baseline=bl.value, beta=beta)
-                        run_rr_learning(settings, save_coverage_table)
+                        run_rr_learning(settings, save_coverage_table=save_coverage_table)
 
 def demo():
     env_names                       = [Environments.SOKOCOIN0, Environments.SOKOCOIN2]

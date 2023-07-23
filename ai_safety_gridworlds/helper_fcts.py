@@ -301,7 +301,9 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, lo
     results_df_with_smooth.to_csv(filenname_perf)
 
     # Prepare a subtitle containing the parameter settings.
-    sub_title: str = f"<br><sup>Learning rate: {learning_rate}{f', Beta: {beta}' if beta is not None else ''}{f', Baseline: {baseline}' if beta is not None else ''}, State set strategy {strategy}</sup>"
+    beta_str        = f", Beta: {beta}" if beta is not None else ''
+    baseline_str    = f", Baseline: '{baseline}'" if beta is not None else ''
+    sub_title: str = f"<br><sup>Learning rate: {learning_rate}{beta_str}{baseline_str}, State set size strategy '{strategy}'</sup>"
     # Plot the performance data and store it to image.
     title: str = f"Performances - '{env_name}'\n{sub_title}"
     fig = px.line(results_df, x='episode', y=['reward', 'performance'], title=title)
