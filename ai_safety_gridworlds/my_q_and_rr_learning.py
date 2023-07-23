@@ -29,25 +29,25 @@ class StateSpaceBuilder():
         # Since an estimate is used, the states will be revealed and assigned to an id during the learning itself.
         self._estimation_state_id_ctr: int = 0
 
-        if self.strategy == Strategies.EXPLORE_STATES:
+        if self.strategy == Strategies.EXPLORE_STATES.value:
             self.states_dict, _, _ = self._explore_states_in_n_steps(env=env, action_space=action_space, env_name=env_name)
 
     def get_nr_states(self) -> int:
-        if self.strategy == Strategies.ESTIMATE_STATES:
+        if self.strategy == Strategies.ESTIMATE_STATES.value:
             return StateSpaceSizeEstimations[self.env_name]
-        if self.strategy == Strategies.EXPLORE_STATES:
+        if self.strategy == Strategies.EXPLORE_STATES.value:
             return len(self.states_dict.keys())
 
     def get_state_id(self, state: str) -> int:
         # Using the estimate strategy, the dictionary will be filled successively with state-id pairs.
         # In this case the q-table will be initialized using an estimate of the states space.
         # Assert, that the estimation is higher than the actually needed number of states!
-        if self.strategy == Strategies.ESTIMATE_STATES:
+        if self.strategy == Strategies.ESTIMATE_STATES.value:
             return self._get_set_state_id(state)
         # Using the exploration strategy, the dictionary has been initialized at class initialization (preprocessing)        
         # In this case the q-table as the exact same size
         # Since the exploration is limited by a number of steps, we can only assert, that all required states have been found already!
-        if self.strategy == Strategies.EXPLORE_STATES:
+        if self.strategy == Strategies.EXPLORE_STATES.value:
             state_id: int = self.states_dict[state]
             assert state_id is not None, f"PRE-PROCESSING WAS INCOMPLETE: Agent encountered an unknown state!"
             return state_id

@@ -174,7 +174,7 @@ def print_state_set_size_estimations(env_state: List[str], verbose: bool = False
 
 def env_loader(env_name) -> Tuple:
     # Get environment.
-    env_name_lvl_dict = {c.Environments.SOKOCOIN0: 0, c.Environments.SOKOCOIN2: 2, c.Environments.SOKOCOIN3: 3}
+    env_name_lvl_dict = {c.Environments.SOKOCOIN0.value: 0, c.Environments.SOKOCOIN2.value: 2, c.Environments.SOKOCOIN3.value: 3}
     env = factory.get_environment_obj('side_effects_sokoban', noops=True, level=env_name_lvl_dict[env_name])
 
     # Construct the action space.

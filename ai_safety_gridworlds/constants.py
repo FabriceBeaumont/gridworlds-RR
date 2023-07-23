@@ -31,9 +31,9 @@ class PARAMETRS(Enum):
     BETA: str               = "Beta"
 
 StateSpaceSizeEstimations: Dict[str, int] = {
-    Environments.SOKOCOIN0: 100,
-    Environments.SOKOCOIN2: 47648,
-    Environments.SOKOCOIN3: 6988675,
+    Environments.SOKOCOIN0.value: 100,
+    Environments.SOKOCOIN2.value: 47648,
+    Environments.SOKOCOIN3.value: 6988675,
 }
 #TODO: sparse matrix for qtable/cable?
 

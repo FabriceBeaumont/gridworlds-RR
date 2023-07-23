@@ -1,6 +1,8 @@
-from typing import List
+from typing import List, Dict, Set, Tuple, Any
 import plotly.express as px
+import matplotlib.pyplot as plt
 import numpy as np
+from scipy.sparse import save_npz, load_npz, csc_matrix, csr_matrix
 import pandas as pd
 
 from os import listdir
@@ -8,12 +10,62 @@ from os.path import isfile, join
 
 import constants as c
 
+def visualize_qtable(save_path: str = None, path: str = None, q_table: np.array = None):
+    if q_table is None:
+        q_table = np.load(path)
+
+    plt.figure(figsize=(14, 10))
+    plt.imshow(q_table, cmap='hot', interpolation='nearest')
+    plt.colorbar(label='Q-Value')
+    plt.title('Q-Table Visualization')
+    plt.xlabel('Actions')
+    plt.ylabel('States')
+
+    if save_path is not None:
+        plt.savefig(save_path)
+    else:
+        plt.show()
+
+
+def visualize_topNq_states(path: str = '', num_states: int = 100, q_table: np.array = None):
+    if q_table is None:
+        q_table = np.load(path, allow_pickle=True)
+
+    # Compute the average Q-value for each state
+    avg_q_values = q_table.mean(axis=1)
+
+    # Get the indices of the states with the highest average Q-values
+    top_states = np.argpartition(avg_q_values, -num_states)[-num_states:]
+
+    # Extract the corresponding rows from the Q-table
+    top_q_table = q_table[top_states, :]
+
+    visualize_qtable(q_table)
+
+def get_percentage_of_zero(path: str = '', q_table: np.array = None) -> Tuple[float, float]:
+    """Returns the percentage of entries which are not zero, 
+    and the percentage of rows which do contain at least one non zero value.
+    """
+    if q_table is None:
+        q_table: np.array = np.load(path, allow_pickle=True)
+
+    n = q_table.size
+    nzero_percent = np.count_nonzero(q_table) / n * 100
+    not_null_rows = q_table[np.any(q_table, axis=1)]
+    nzero_rows_percent = len(not_null_rows) / n * 100
+    return nzero_percent, nzero_rows_percent
+
+    
+
 if __name__ == "__main__":
 
     path = f"{c.RESULTS_DIR}/env_name/method_name/dir_time_tag/qtable.npy"
     path = "/home/fabrice/Documents/coding/ML/Results/Environments.SOKOCOIN2/RRLearning/2023_07_20-22_40_e10000_b0-1_blStarting/qtable.npy"
 
-    q_table: np.array = np.load(path,  allow_pickle=True)
+    # TODO: get percentage of non zero rows
+
+    q_table: np.array = np.load(path, allow_pickle=True)
+    x: csc_matrix = None # np.load_npz(path,  allow_pickle=True)
     # q_table[:100,:]
     not_null_rows = q_table[np.any(q_table, axis=1)]
     fig = px.imshow(not_null_rows)
