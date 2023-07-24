@@ -7,6 +7,14 @@ from enum import Enum
 MAX_NR_ACTIONS: int = 100
 RESULTS_DIR: str    = "../../Results"    
 
+fn_states: str      = "states.npy"
+fn_id_states: str   = "states_id_str.npy"        
+fn_actions: str     = "actions.npy"    
+fn_runtime: str     = "states_rt.npy"
+fn_qtable: str      = "qtable.npy"
+fn_ctable: str      = "ctable.npy"
+fn_states_dict: str = "states_id_dict.npy"
+
 class Strategies(Enum):
     ESTIMATE_STATES: str   = "Estimate"
     EXPLORE_STATES: str    = "Explore"

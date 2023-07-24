@@ -3,7 +3,7 @@ from collections import Counter
 import numpy as np
 import pandas as pd
 import os
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, time
 import math
 
 import plotly.express as px
@@ -172,7 +172,7 @@ def print_state_set_size_estimations(env_state: List[str], verbose: bool = False
 
     return nr_states
 
-def env_loader(env_name) -> Tuple:
+def load_env(env_name) -> Tuple:
     # Get environment.
     env_name_lvl_dict = {c.Environments.SOKOCOIN0.value: 0, c.Environments.SOKOCOIN2.value: 2, c.Environments.SOKOCOIN3.value: 3}
     env = factory.get_environment_obj('side_effects_sokoban', noops=True, level=env_name_lvl_dict[env_name])
@@ -183,6 +183,19 @@ def env_loader(env_name) -> Tuple:
     
     return env, action_space
 
+def get_best_action(q_table: np.array, state_id: int, actions: List[int]) -> int:
+    # Get the best action according to the q-values for every possible action in the current state.
+    max_indices: np.array = np.argwhere(q_table[state_id, :] == np.amax(q_table[state_id, :])).flatten().tolist()
+    # Among all best actions, chose randomly.
+    return actions[np.random.choice(max_indices)]
+
+def get_greedy_policy_action(eps: float, state_id: int, action_space: List[int], q_table: np.array) -> int:
+    # Determine action. Based on the exploration strategy (random or using the q-values).            
+    if np.random.random() < eps:
+        return np.random.choice(action_space)
+    else:
+        return get_best_action(q_table, state_id, action_space)
+
 def get_annealed_epsilons(nr_episodes: int) -> np.array:
     # For the first 9/10 episodes reduce the exploration rate linearly to zero.
     exp_strategy_linear_decrease: np.array[float]   = np.arange(1.0, 0, -1.0 / (nr_episodes * 0.9))
@@ -190,6 +203,40 @@ def get_annealed_epsilons(nr_episodes: int) -> np.array:
     exp_strategy_zero: np.array[float]              = np.zeros(int(nr_episodes * 0.11))
     return np.concatenate((exp_strategy_linear_decrease, exp_strategy_zero))
 
+def run_agent_on_env(results_path: str, env_name: str, live_prints: bool = True) -> np.array:    
+    # Load the environment.    
+    env, action_space = load_env(env_name)
+    # Load the q-table.
+    q_table: np.array = np.load(f"{results_path}/{c.fn_qtable}", allow_pickle=True)
+    # Load the states_dict.
+    states_dict: Dict[str, int] = np.load(f"{results_path}/{c.fn_states_dict}", allow_pickle=True)
+    step_ctr: int = 0
+    
+    # Run the agent.
+    timestep = env.reset()
+    state: str = str(timestep.observation['board'])
+    states_list: List[str] = [state]
+    if live_prints:
+        print(state)
+        
+    while not timestep.last() and step_ctr < 1000:
+        # Check if the state is already known. Otherwise assign in a free 'state_id'.
+        state_id: int = states_dict.get(state)
+        # Get the best action when being in this state - according to the q-table.
+        action = get_best_action(q_table, state_id, action_space)
+        timestep = env.step(action)
+        state: str = str(timestep.observation['board'])
+
+        # Save the new state.
+        if live_prints:
+            print(state)
+            time.sleep(1)
+        states_list.append(state)
+        step_ctr += 1
+
+    # Save the list of explores states to file.
+    np.save(f"{results_path}/agent_journey_n{step_ctr}.npy", states_list)
+    
 ### DATA PROCESSING FUNCTIONS
 
 def _smooth(values, window=100):
@@ -228,17 +275,12 @@ def generate_dir_name(settings: Dict[c.PARAMETRS, str]) -> str:
         dir_name += f"_bl{baseline}"
     return dir_name + f"_S{strategy[:2]}"
     
-def save_intermediate_qtables_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, episode: int, method_name: str) -> None:
+def save_intermediate_qtables_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, episode: int, method_name: str, dir_name_prefix: str = '') -> None:
     # Extract the parameter settings.
-    env_name: str           = settings.get(c.PARAMETRS.ENV_NAME)
-    dir_name: str = generate_dir_name(settings)
-    
-    # Create necessary directories to save perfomance and results
-    time_tag: str = datetime.now().strftime("%Y_%m_%d-%H_%M")
-    qtables_dir: str = "../../QTables"    
-    dir_time_tag: str = f"{time_tag}_{str(dir_name).replace('.', '-')}"
-    env_path: str = f"{qtables_dir}/{env_name}/{method_name}/{dir_time_tag}"
-    
+    env_name: str = settings.get(c.PARAMETRS.ENV_NAME)
+    dir_name: str = f"{dir_name_prefix}_{generate_dir_name(settings).replace('.', '-')}"
+    env_path: str = f"{c.RESULTS_DIR}/{env_name}/{method_name}/{dir_name}"
+        
     # Create all necessary directories.
     path_names = env_path.split("/")
     for i, _ in enumerate(path_names):
@@ -251,7 +293,7 @@ def save_intermediate_qtables_to_file(settings: Dict[c.PARAMETRS, str], q_table:
     # Save the q-table to file.
     np.save(filenname_qtable_e, q_table)
 
-def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, losses: np.array, episodic_returns: np.array, episodic_performances: np.array, evaluated_episodes: np.array, seed: int, method_name: str, complete_runtime:float, coverage_table: np.array=None) -> Tuple[str, str]:
+def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, states_dict: Dict[str, int], losses: np.array, episodic_returns: np.array, episodic_performances: np.array, evaluated_episodes: np.array, seed: int, method_name: str, complete_runtime:float, coverage_table: np.array=None, dir_name_prefix: str = '') -> Tuple[str, str]:
     # Extract the parameter settings.
     env_name: str           = settings.get(c.PARAMETRS.ENV_NAME)
     nr_episodes: int        = settings.get(c.PARAMETRS.NR_EPISODES)
@@ -261,14 +303,9 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, lo
     
     baseline: str           = settings.get(c.PARAMETRS.BASELINE)
     beta: float             = settings.get(c.PARAMETRS.BETA)   
-    dir_name: str = generate_dir_name(settings)
-
-    # Create necessary directories to save perfomance and results
-    time_tag: str = datetime.now().strftime("%Y_%m_%d-%H_%M")
-    results_dir: str = c.RESULTS_DIR
-    dir_time_tag: str = f"{time_tag}_{str(dir_name).replace('.', '-')}"
-    env_path: str = f"{results_dir}/{env_name}/{method_name}/{dir_time_tag}"
-
+    dir_name: str = f"{dir_name_prefix}_{generate_dir_name(settings).replace('.', '-')}"
+    env_path: str = f"{c.RESULTS_DIR}/{env_name}/{method_name}/{dir_name}"
+    
     # Create all necessary directories.
     path_names = env_path.split("/")
     for i, _ in enumerate(path_names):
@@ -277,8 +314,9 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, lo
             os.mkdir(path)
     
     # Create the paths.
-    filenname_qtable: str               = f"{env_path}/qtable.npy"
-    filenname_coverage_table: str       = f"{env_path}/ctable.npy"
+    filenname_qtable: str               = f"{env_path}/{c.fn_qtable}"
+    filenname_states_dict: str          = f"{env_path}/{c.fn_states_dict}"
+    filenname_coverage_table: str       = f"{env_path}/{c.fn_ctable}"
     filenname_general: str              = f"{env_path}/general.txt"
     filenname_perf: str                 = f"{env_path}/performances_table_seed{seed}.csv"
     filenname_perf_plot: str            = f"{env_path}/plot1_performance.jpeg"
@@ -286,8 +324,10 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, lo
     filenname_smooth_results_plot: str  = f"{env_path}/plot3_results_smooth.jpeg"
     
     # Save the q-table to file.
-    np.save(filenname_qtable, q_table)
-    # Save the q-table to file.
+    np.save(filenname_qtable, q_table)    
+    # Save the states-id-dictionary to file.
+    np.save(filenname_states_dict, states_dict)
+    # Save the coverage-table to file.
     if coverage_table is not None: 
         np.save(filenname_coverage_table, coverage_table)
     # Save general information, including the runtime to file.    
@@ -326,6 +366,7 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, lo
 
     print("Saving to file complete.\n\n")
     return filenname_qtable, filenname_perf
+
 
 if __name__ == "__main__":
 
