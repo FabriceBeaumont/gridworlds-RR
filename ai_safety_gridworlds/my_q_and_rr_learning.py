@@ -12,8 +12,6 @@ import time
 import numpy as np
 import os 
 
-from helpers import factory
-
 # Local imports
 import helper_fcts as hf
 import constants as c
@@ -287,7 +285,7 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, s
         if baseline == Baselines.STEPWISE_INACTION_BASELINE.value:
             # Up to the last time step, simulate the environment as before.
             env_simulation, _ = hf.load_env(env_name)
-            for a in _actions_so_far[:1]:                        
+            for a in _actions_so_far[:-1]:                        
                 env_simulation.step(a)
             # But for the last time step perform the NOOP action.
             timestep = env_simulation.step(action_space[4])
@@ -376,10 +374,10 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, s
             # Get the initial set of observations from the environment.
             timestep = env.reset()
             # Reset the variables for each episode.
-            _state_new: str         = ""
-            _state_old: str            = ""
-            _state_new_id: int      = None
-            _state_old_id: int         = None
+            _state_new: str             = ""
+            _state_old: str             = ""
+            _state_new_id: int          = None
+            _state_old_id: int          = None
             _last_action: int           = None
             _actions_so_far_ctr: int    = 0
             _actions_so_far: List[int]  = []
@@ -419,12 +417,16 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, s
                     diff: np.array = c_table[_baseline_state_id, :] - c_table[_state_new_id, :]
                     # Apply the maximum function. This ensures, that we do not punish reachabilities higher than the one of the baseline.
                     diff[diff<0] = 0.0
+                    if any(diff):
+                        print("Non-zero difference")
                     # Average this reachability (clipped to non-negative values) to get the relative reachability.
                     # Notice that if we estimate the size of the state set, and are wrong by 'E', that is the estimated size is '|S| + E',
                     # then we can use a beta of 'beta * (1+E/|S|)' to expect the same restults as when using 'beta' and the correct size '|S|'.
                     # [Since: 1 / (|S| + E) ==> wrong by factor 1 / (1+E/|S|) ].
                     d_rr: float = np.mean(diff)
                     if _use_encountered_states_for_avg_only: d_rr * len(diff) / len(_set_set)
+                    if d_rr > 0:
+                        print("Non-zero rr-penalty")
                     
                     # UPDATE Q-VALUES.
                     rr_reward = timestep.reward - beta * d_rr
@@ -531,7 +533,7 @@ def demo():
     learning_rates: List[float]     = [.1]
     discount_factors: List[float]   = [0.99]
     betas: List[float]              = [0.1]
-    baselines: np.array[Baselines]  = np.array([Baselines.STARTING_STATE_BASELINE, Baselines.INACTION_BASELINE, Baselines.STEPWISE_INACTION_BASELINE])
+    baselines: np.array[Baselines]  = np.array([Baselines.STARTING_STATE_BASELINE, Baselines.STEPWISE_INACTION_BASELINE])
     
     # Perform the learning using an estimation of the state space size.
     run_experiments_q_vs_rr(env_names, nr_episodes, learning_rates, discount_factors, betas, baselines, strategy=Strategies.ESTIMATE_STATES, save_coverage_table=True)
@@ -548,18 +550,18 @@ def experiment_right_box_movement_girdsearch():
                     learning_rate=lr,
                     state_set_strategy=Strategies.ESTIMATE_STATES.value, 
                     q_discount=discount, 
-                    baseline=Baselines.INACTION_BASELINE.value, 
+                    baseline=Baselines.STARTING_STATE_BASELINE.value, 
                     beta=beta
                 )
                 run_rr_learning(settings, save_coverage_table=True)
 
-def check_bl():    
-    for bl in [Baselines.STARTING_STATE_BASELINE.value, Baselines.INACTION_BASELINE.value, Baselines.STEPWISE_INACTION_BASELINE.value]:
+def tiny_runtest_rr():    
+    for bl in [Baselines.STARTING_STATE_BASELINE.value, Baselines.STEPWISE_INACTION_BASELINE.value]:
         settings = create_settings_dict(
             env_name=Environments.SOKOCOIN0.value, 
-            nr_episodes=100, 
+            nr_episodes=10000, 
             learning_rate=1.,
-            state_set_strategy=Strategies.ESTIMATE_STATES.value, 
+            state_set_strategy=Strategies.ESTIMATE_STATES.value,
             q_discount=1.0,
             baseline=bl, 
             beta=1.0
@@ -572,12 +574,12 @@ def experiment_complete_estimate():
     learning_rates: List[float]     = [.1, .5]
     discount_factors: List[float]   = [0.99, 1.]
     betas: List[float]              = [0.1, 3, 100]
-    baselines: np.array[Baselines]  = np.array([Baselines.STARTING_STATE_BASELINE, Baselines.INACTION_BASELINE, Baselines.STEPWISE_INACTION_BASELINE])
+    baselines: np.array[Baselines]  = np.array([Baselines.STARTING_STATE_BASELINE, Baselines.STEPWISE_INACTION_BASELINE])
         
     run_experiments_q_vs_rr(env_names, nr_episodes, learning_rates, discount_factors, betas, baselines, strategy=Strategies.EXPLORE_STATES)
 
 if __name__ == "__main__":
-    check_bl()
+    tiny_runtest_rr()
     # experiment_right_box_movement_girdsearch()
         
-    # TODO: FB: Render the environements. Maybe even to Gif. > Run agent.
+    # TODO: FB: Render the environements. Maybe even to Gif. > Run agent. TODO: Unused code in 'not_used.py'. Eliminate inaction baseline from experiments.

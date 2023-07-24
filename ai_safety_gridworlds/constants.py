@@ -7,6 +7,7 @@ from enum import Enum
 MAX_NR_ACTIONS: int = 100
 RESULTS_DIR: str    = "../../Results"    
 
+# Definition of a couple of filenames for standardized file writing and reading.
 fn_states_npy: str      = "states.npy"
 fn_id_states_npy: str   = "states_id_str.npy"        
 fn_actions_npy: str     = "actions.npy"    
@@ -58,11 +59,3 @@ ACTIONS: Dict[int, str] = {
     3: "Right",
     4: "NOOP"
 }
-
-# General expected scrope of the experiments:
-env_names                       = [Environments.SOKOCOIN0, Environments.SOKOCOIN2]    # , Environments.SOKOCOIN3
-nr_episodes: int                = 10000
-learning_rates: List[float]     = [.1, .3, .9]
-discount_factors: List[float]   = [0.99, 1.]
-base_lines: np.array            = np.array([Baselines.STARTING_STATE_BASELINE, Baselines.INACTION_BASELINE, Baselines.STEPWISE_INACTION_BASELINE])
-strategies: List[Strategies]    = [Strategies.ESTIMATE_STATES, Strategies.EXPLORE_STATES]
