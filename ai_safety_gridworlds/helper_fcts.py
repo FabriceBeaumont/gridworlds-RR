@@ -6,11 +6,9 @@ import os
 from csv import DictWriter, Sniffer
 from datetime import timedelta, datetime
 import time
-import math
 
 import plotly.express as px
 from helpers import factory
-import re
 
 # Local imports
 import constants as c
@@ -43,111 +41,21 @@ GAME_ART = [['######',  # Level 0.
             '##########'],
 ]  
 
-# ctr0 = Counter({'#': 25, ' ': 8,  'A': 1, 'X': 1, 'G': 1})
-# ctr1 = Counter({'#': 38, ' ': 29, 'C': 2, '1': 1, 'A': 1, '2': 1})
-# ctr2 = Counter({'#': 47, ' ': 46, 'C': 3, '1': 1, 'A': 1, '3': 1, '2': 1})
-# states0 =           60
-# states1 =       29.830
-# states2 = ? >  237.350
+# Sokocoin0 = Counter({'#': 25, ' ': 8,  'A': 1, 'X': 1, 'G': 1})
+# Sokocoin2 = Counter({'#': 38, ' ': 29, 'C': 2, '1': 1, 'A': 1, '2': 1})
+# Sokocoin3 = Counter({'#': 47, ' ': 46, 'C': 3, '1': 1, 'A': 1, '3': 1, '2': 1})
 
-# n! - Anz der Permutationen fuer drei Boxen auf drei Felder. Moeglichkeiten drei verschiedene Boxen auf gleiche drei Felder zu stellen.
-# ABC BCA CAB     ACB CBA BAC
-
-OLD_KEY_CHAR_GROUPS = [   
-    ['A'],
-    ['C'],
-    ['X', '1', '2', '3']
-]
-
-KEY_CHARS = [   
-    'A',
-    'C',
-    'B'
-]
-
-KEY_CHAR_GROUPS = [   
-    ['2'],
-    ['3'],
-    ['4']
-]
-
-def state_to_keypos(state = GAME_ART[2]) -> Tuple[str, List[List[int]]]:
-
-    state_str = "".join(state)
-
-    key_char_pos = []
-
-    for char_group in KEY_CHAR_GROUPS:
-        indices = []
-        for pattern in char_group:
-            # Get an iterator to find all occurances.
-            iterator = re.finditer(pattern=pattern, string=state_str)
-            pattern_indices = [match.start() for match in iterator]
-            # Merge all indices of occurances of this pattern, with others from the char group.
-            # This ensures, that for example no difference is made between the bosex '1', '2', and '3'.
-            indices += pattern_indices
-            
-        key_char_pos.append(indices)
-
-    return f"a{key_char_pos[0]}-c{key_char_pos[1]}-b{key_char_pos[2]}", key_char_pos
-
-def keypos_to_state(key_char_str: str, env_id=2) -> Tuple[List[str], List[List[int]]]:
-    # Parse the key-char-string into a list.
-    tmp_pos: List[str] = [x[1:].replace("[", "").replace("]", "") for x in key_char_str.split('-')]
-    key_char_pos: List[List[int]] = [[int(x) for x in pos.split(', ')] for pos in tmp_pos]
-        
-    # Prepare the gridworld - start from the basic.
-    basic_state = GAME_ART[env_id]
-    state_str = "".join(basic_state)
-
-    # Remove the already present objects.
-    for char_group in KEY_CHAR_GROUPS:
-        for char in char_group:
-            state_str = state_str.replace(char, " ")
-
-    # Add the objects according to the key char positions.
-    for i, key_char in enumerate(KEY_CHARS):
-        for pos in key_char_pos[i]:
-            state_str = state_str[:pos] + key_char + state_str[pos + 1:]
-
-    # Finally split the environment accoring to its rows.
-    row_length  = len(basic_state[0])
-    max_index   = len(state_str)
-    state_str_mat: List[str] = [state_str[i:i + row_length] for i in range(0, max_index, row_length) ]
-
-    return state_str_mat, key_char_pos
-
-def demo_keypos_fct():
-    state: List[str] = ['##########',  # Level 3.
-           '#    #   #',
-           '#     A  #',
-           '#  # 123 #',
-           '####     #',
-           '# C#  ####',
-           '#  #  #  #',
-           '#        #',
-           '#        #',
-           '##########']
-    
-    key_char_pos_str, key_char_pos = state_to_keypos(state=state)    
-    print(key_char_pos)
-    print(key_char_pos_str) 
-
-    state_str_mat, key_char_pos = keypos_to_state(key_char_pos_str)
-    for row in state_str_mat:
-        print(row)
-
-def my_comb(n, k) -> int:
-    return int(math.factorial(n) / (math.factorial(k) * math.factorial(n-k)))
-
-def print_state_set_size_estimations(env_state: List[str], verbose: bool = False) -> int:
+def print_sokocoin_state_space_size_estimations(env_state: List[str], verbose: bool = False) -> int:
     """ To count the number of all possible states, we have to consider all possible places, where the boxes and the agent can be.
     This number has to be multiplied by a factor accounting for wheter some (but not all) coins have been collected or not.
     To formulate an upper bound on the number of possible states we allow the boxes and the agent to be places on all grids, which are not 
     a box or an agent. 
-    We place them separately, since states are not different, if we swap the boxes. Notice however, that this differentiation is NOT accounted for
-    in the encoding in the environment and in straight forward implementations based on string comparisons!!!!!!!!!
-
+    We place them separately, since states are not different, if we swap the boxes. 
+    If there are n different boxes, but their placement does not matter, there are n! different configurations of them.
+    Notice however, that this differentiation is NOT accounted for
+    in the encoding in the environment and in straight forward implementations based on string comparisons!
+    Dependin on the environment interpretation, the matrix of integer values may be more accurate in this regard.
+    
     Examples for states which we count, but are not possible are when the agent is surrounded by boxes and walls.
     The agent cannot pull boxes behind him and thus cannot create this state.
     """
@@ -174,7 +82,7 @@ def print_state_set_size_estimations(env_state: List[str], verbose: bool = False
 
     return nr_states
 
-def load_env(env_name) -> Tuple:
+def load_sokocoin_env(env_name) -> Tuple:
     # Get environment.
     env_name_lvl_dict = {c.Environments.SOKOCOIN0.value: 0, c.Environments.SOKOCOIN2.value: 2, c.Environments.SOKOCOIN3.value: 3}
     env = factory.get_environment_obj('side_effects_sokoban', noops=True, level=env_name_lvl_dict[env_name])
@@ -207,7 +115,7 @@ def get_annealed_epsilons(nr_episodes: int) -> np.array:
 
 def run_agent_on_env(results_path: str, env_name: str, live_prints: bool = False) -> np.array:    
     # Load the environment.    
-    env, action_space = load_env(env_name)
+    env, action_space = load_sokocoin_env(env_name)
     # Load the q-table.
     q_table: np.array = np.load(f"{results_path}/{c.fn_qtable_npy}", allow_pickle=True)
     # Load the states_dict.
@@ -253,12 +161,6 @@ def add_smoothed_data(df, window=100, keys: List[str] = ['episode', 'reward', 'p
 
 ### PRINT FUNCTIONS
 
-def print_actions_list(actions: List[int]) -> None:
-    for a in actions:
-        print(f"{c.ACTIONS[a]}, ", end="")
-
-    print()
-
 def print_states_dict(states_dict: Dict[str, int]) -> None:
     for s, nr in states_dict.items():
         print(f"{s} \tNr:{nr}")
@@ -269,19 +171,19 @@ def generate_dir_name(settings: Dict[c.PARAMETRS, str]) -> str:
     # Extract the parameter settings.
     nr_episodes: int        = settings.get(c.PARAMETRS.NR_EPISODES)    
     learning_rate: float    = settings.get(c.PARAMETRS.LEARNING_RATE)
-    strategy: str           = settings.get(c.PARAMETRS.STATE_SET_STRATEGY)
+    strategy: str           = settings.get(c.PARAMETRS.STATE_SPACE_STRATEGY)
     baseline: str           = settings.get(c.PARAMETRS.BASELINE)
     q_discount: float       = settings.get(c.PARAMETRS.Q_DISCOUNT)
     beta: float             = settings.get(c.PARAMETRS.BETA)
 
     episodes_str        = f"e{nr_episodes}"
     lr_str              = f"_lr{learning_rate}"
-    sset_strategy_str   = f"_S{strategy[:3]}"
+    sspace_strategy_str = f"_S{strategy[:3]}"
     baseline_str        = f"_bl{baseline[:4]}" if baseline is not None else ''
     discount_str        = f"_g{q_discount}"
     beta_str            = f"_b{beta}" if beta is not None else ''
     
-    return f"{episodes_str}{lr_str}{sset_strategy_str}{baseline_str}{discount_str}{beta_str}"
+    return f"{episodes_str}{lr_str}{sspace_strategy_str}{baseline_str}{discount_str}{beta_str}"
     
 def save_intermediate_qtables_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, episode: int, method_name: str, dir_name_prefix: str = '') -> None:
     # Extract the parameter settings.
@@ -307,7 +209,7 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, st
     nr_episodes: int        = settings.get(c.PARAMETRS.NR_EPISODES)
     # Learning rate (alpha).
     learning_rate: float    = settings.get(c.PARAMETRS.LEARNING_RATE)
-    strategy: str           = settings.get(c.PARAMETRS.STATE_SET_STRATEGY)
+    strategy: str           = settings.get(c.PARAMETRS.STATE_SPACE_STRATEGY)
     baseline: str           = settings.get(c.PARAMETRS.BASELINE)
     q_discount: float       = settings.get(c.PARAMETRS.Q_DISCOUNT)
     beta: float             = settings.get(c.PARAMETRS.BETA)
@@ -352,7 +254,7 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, st
 
     # Prepare a subtitle containing the parameter settings.
     lr_str              = f"Learning rate: {learning_rate}"
-    sset_strategy_str   = f", State set size strategy '{strategy}'"
+    sset_strategy_str   = f", State set space strategy '{strategy}'"
     baseline_str        = f", Baseline: '{baseline}'" if beta is not None else ''
     discount_str        = f", Discount factor: {q_discount}"
     beta_str            = f", Beta: {beta}" if beta is not None else ''
@@ -420,10 +322,7 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, st
     return filenname_qtable, filenname_perf
 
 
-if __name__ == "__main__":
-    # for env in GAME_ART:
-    #     print(print_state_set_size_estimations(env))
-
+if __name__ == "__main__":    
     # path0 = '/home/fabrice/Documents/coding/ML/Results/sokocoin0/RRLearning/2023_07_24-17_23_e100_b0-1_blStepwise_SEs'
     path0 = '/home/fabrice/Documents/coding/ML/Results/sokocoin0/RRLearning/2023_07_24-18_47_e10000_b0-1_blInaction_SEs'
     # path1 = '/home/fabrice/Documents/coding/ML/Results/sokocoin2/QLearning/2023_07_24-17_33_e100_bNone_SEx'

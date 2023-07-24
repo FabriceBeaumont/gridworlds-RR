@@ -90,7 +90,7 @@ class StateSpaceBuilder():
                 states_steps_dict[board_str] = len(actions_so_far)
                 states_actions_dict[board_str] = np.array(actions_so_far, dtype=int)
                 
-                if not (len(states_steps_dict.keys()) % 50): print(f"\rExploring states ... ({len(states_steps_dict.keys())} so far)", end="")
+                if not (len(states_steps_dict.keys()) % 50): print(f"\rExploring state space ... ({len(states_steps_dict.keys())} so far)", end="")
                 
                 if not timestep.last() and len(actions_so_far) < MAX_NR_ACTIONS:
                     for action in action_space:
@@ -158,7 +158,7 @@ def run_q_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, se
     nr_episodes     = settings.get(PARAMETRS.NR_EPISODES)
     # Learning rate (alpha).
     learning_rate   = settings.get(PARAMETRS.LEARNING_RATE)
-    strategy        = settings.get(PARAMETRS.STATE_SET_STRATEGY)
+    strategy        = settings.get(PARAMETRS.STATE_SPACE_STRATEGY)
     # Time discount/ costs for each time step. Aka 'gamma'.
     q_discount : float = settings.get(PARAMETRS.Q_DISCOUNT)
         
@@ -171,7 +171,7 @@ def run_q_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, se
     
     start_time: float = time.time()    
     # Load the environment.    
-    env, action_space = hf.load_env(env_name)
+    env, action_space = hf.load_sokocoin_env(env_name)
     states_set = StateSpaceBuilder(env_name=env_name, strategy=strategy, env=env, action_space=action_space)
     np.random.seed(seed)
     
@@ -284,7 +284,7 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, s
         # For the stepwise inaction baseline, simulate doing the actions as before, but choosing the NOOP action for the last step.
         if baseline == Baselines.STEPWISE_INACTION_BASELINE.value:
             # Up to the last time step, simulate the environment as before.
-            env_simulation, _ = hf.load_env(env_name)
+            env_simulation, _ = hf.load_sokocoin_env(env_name)
             for a in _actions_so_far[:-1]:                        
                 env_simulation.step(a)
             # But for the last time step perform the NOOP action.
@@ -304,7 +304,7 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, s
     nr_episodes: int        = settings.get(PARAMETRS.NR_EPISODES)
     # Learning rate (alpha).
     learning_rate: float    = settings.get(PARAMETRS.LEARNING_RATE)
-    strategy: str           = settings.get(PARAMETRS.STATE_SET_STRATEGY)
+    strategy: str           = settings.get(PARAMETRS.STATE_SPACE_STRATEGY)
     # Time discount/ costs for each time step. Aka 'gamma'.    
     q_discount: float       = settings.get(PARAMETRS.Q_DISCOUNT)
     baseline: str           = settings.get(PARAMETRS.BASELINE)
@@ -313,7 +313,7 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, s
     start_time: float = time.time()
     
     # Load the environment.
-    env, action_space = hf.load_env(env_name)
+    env, action_space = hf.load_sokocoin_env(env_name)
     states_set = StateSpaceBuilder(env_name=env_name, strategy=strategy, env=env, action_space=action_space)
     np.random.seed(seed)
     
@@ -420,7 +420,7 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, s
                     if any(diff):
                         print("Non-zero difference")
                     # Average this reachability (clipped to non-negative values) to get the relative reachability.
-                    # Notice that if we estimate the size of the state set, and are wrong by 'E', that is the estimated size is '|S| + E',
+                    # Notice that if we estimate the size of the state space, and are wrong by 'E', that is the estimated size is '|S| + E',
                     # then we can use a beta of 'beta * (1+E/|S|)' to expect the same restults as when using 'beta' and the correct size '|S|'.
                     # [Since: 1 / (|S| + E) ==> wrong by factor 1 / (1+E/|S|) ].
                     d_rr: float = np.mean(diff)
@@ -479,14 +479,14 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, s
 
     return episodic_returns, episodic_performances
 
-def create_settings_dict(env_name: str, nr_episodes: int, learning_rate: float = None, state_set_strategy: str = None, q_discount: float = None, baseline: str = None, beta: float = None) -> Dict[PARAMETRS, str]:
+def create_settings_dict(env_name: str, nr_episodes: int, learning_rate: float = None, statespace_strategy: str = None, q_discount: float = None, baseline: str = None, beta: float = None) -> Dict[PARAMETRS, str]:
     """Store the parameter settings in a dictionary for simplified forwarding of the parameters.
 
     Args:
         env_name (str): Name of the gridworlds environment.
         nr_episodes (int): Number of learning episodes.
         learning_rate (float, optional): Factor to weight the computed delta for coverage and q-values. Assume values in (0,1).
-        state_set_strategy (str, optional): Strategy to explore or estimate the number of possible states. Defaults to None.
+        statespace_strategy (str, optional): Strategy to explore or estimate the number of possible states. Defaults to None.
         q_discount (float, optional): Factor to weight of the coverage and q-value of furture states. Defaults to None.
         baseline (str, optional): Baseline definition in the RR-Algorithm. Defaults to None.
         beta (float, optional): Factor to weight the relative reachability penality on the given reward. Beta = 0.0 implies standard Q-Learning. Defaults to None.
@@ -496,13 +496,13 @@ def create_settings_dict(env_name: str, nr_episodes: int, learning_rate: float =
     """
     settings: Dict[PARAMETRS, Any] = dict()
 
-    settings[PARAMETRS.ENV_NAME]            = env_name
-    settings[PARAMETRS.NR_EPISODES]         = nr_episodes
-    settings[PARAMETRS.LEARNING_RATE]       = learning_rate
-    settings[PARAMETRS.STATE_SET_STRATEGY]  = state_set_strategy
-    settings[PARAMETRS.BASELINE]            = baseline
-    settings[PARAMETRS.Q_DISCOUNT]          = q_discount
-    settings[PARAMETRS.BETA]                = beta
+    settings[PARAMETRS.ENV_NAME]                = env_name
+    settings[PARAMETRS.NR_EPISODES]             = nr_episodes
+    settings[PARAMETRS.LEARNING_RATE]           = learning_rate
+    settings[PARAMETRS.STATE_SPACE_STRATEGY]    = statespace_strategy
+    settings[PARAMETRS.BASELINE]                = baseline
+    settings[PARAMETRS.Q_DISCOUNT]              = q_discount
+    settings[PARAMETRS.BETA]                    = beta
     
     return settings
 
@@ -516,14 +516,14 @@ def run_experiments_q_vs_rr(env_names: List[Baselines], nr_episodes: int, learni
         for lr in learning_rates:
             for d in discount_factors:
                 print(f"Experiment {ctr}/{nr_experiments} - QLearning: {n.value}, e{nr_episodes}, lr{lr}, discount{d}, StateSetSizeStrategy:{strategy.value}")
-                settings = create_settings_dict(env_name=n.value, nr_episodes=nr_episodes, learning_rate=lr, state_set_strategy=strategy.value, q_discount=d)
+                settings = create_settings_dict(env_name=n.value, nr_episodes=nr_episodes, learning_rate=lr, statespace_strategy=strategy.value, q_discount=d)
                 run_q_learning(settings)
                 ctr += 1
                 
                 for beta in betas:
                     for bl in baselines:
                         print(f"Experiment {ctr}/{nr_experiments} - RRLearning: {n.value}, e{nr_episodes}, lr{lr}, discount{d}, StateSetSizeStrategy:{strategy.value}")
-                        settings = create_settings_dict(env_name=n.value, nr_episodes=nr_episodes, learning_rate=lr, state_set_strategy=strategy.value, q_discount=d, baseline=bl.value, beta=beta)
+                        settings = create_settings_dict(env_name=n.value, nr_episodes=nr_episodes, learning_rate=lr, statespace_strategy=strategy.value, q_discount=d, baseline=bl.value, beta=beta)
                         run_rr_learning(settings, save_coverage_table=save_coverage_table)
                         ctr += 1
 
@@ -548,7 +548,7 @@ def experiment_right_box_movement_girdsearch():
                     env_name=Environments.SOKOCOIN0.value, 
                     nr_episodes=10000, 
                     learning_rate=lr,
-                    state_set_strategy=Strategies.ESTIMATE_STATES.value, 
+                    statespace_strategy=Strategies.ESTIMATE_STATES.value, 
                     q_discount=discount, 
                     baseline=Baselines.STARTING_STATE_BASELINE.value, 
                     beta=beta
@@ -561,7 +561,7 @@ def tiny_runtest_rr():
             env_name=Environments.SOKOCOIN0.value, 
             nr_episodes=10000, 
             learning_rate=1.,
-            state_set_strategy=Strategies.ESTIMATE_STATES.value,
+            statespace_strategy=Strategies.ESTIMATE_STATES.value,
             q_discount=1.0,
             baseline=bl, 
             beta=1.0
@@ -583,3 +583,4 @@ if __name__ == "__main__":
     # experiment_right_box_movement_girdsearch()
         
     # TODO: FB: Render the environements. Maybe even to Gif. > Run agent. TODO: Unused code in 'not_used.py'. Eliminate inaction baseline from experiments.
+    # TODO: FB: Implement usage of a sparse matrix.

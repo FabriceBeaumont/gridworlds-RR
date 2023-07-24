@@ -41,7 +41,7 @@ class PARAMETRS(Enum):
     ENV_NAME: str           = "Env Name"
     NR_EPISODES: str        = "Nr Episodes"
     LEARNING_RATE: str      = "Learning Rate"
-    STATE_SET_STRATEGY: str = "States Set Strategy"
+    STATE_SPACE_STRATEGY: str = "States Set Strategy"
     BASELINE: str           = "Baseline"
     Q_DISCOUNT: str         = "Q Discount"
     BETA: str               = "Beta"
@@ -50,6 +50,12 @@ StateSpaceSizeEstimations: Dict[str, int] = {
     Environments.SOKOCOIN0.value: 100,
     Environments.SOKOCOIN2.value: 47648,
     Environments.SOKOCOIN3.value: 6988675,
+}
+
+TrueStateSpaceSizes: Dict[str, int] = {
+    Environments.SOKOCOIN0.value: 60,
+    Environments.SOKOCOIN2.value: 29830,
+    Environments.SOKOCOIN3.value: 237350, # AT LEAST!
 }
 
 ACTIONS: Dict[int, str] = {

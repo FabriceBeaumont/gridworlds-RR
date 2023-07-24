@@ -14,7 +14,6 @@ Q_PATH = '/home/fabrice/Documents/coding/ML/Results/sokocoin0/RRLearning/2023_07
 #"/home/fabrice/Documents/coding/ML/Results/Environments.SOKOCOIN2/RRLearning/2023_07_20-22_40_e10000_b0-1_blStarting/qtable.npy"
 C_PATH = "/home/fabrice/Documents/coding/ML/Results/Environments.SOKOCOIN2/RRLearning/2023_07_20-22_40_e10000_b0-1_blStarting/ctable.npy"
 
-
 def visualize_matrix_px(save_path: str = None, path: str = None, table: np.array = None):
     if table is None:
         table = np.load(path)
