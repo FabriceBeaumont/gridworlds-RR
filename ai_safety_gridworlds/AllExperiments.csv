@@ -1,0 +1,5 @@
+Environment name,Nr. episodes,Learning rate,Strategy,Baseline,Beta,Last reward,Last performances,Storage path
+sokocoin0,100,0.1,Estimate,Inaction,0.1,45.0,35.0,../../Results/sokocoin0/QLearning/2023_07_24-19_25_e100_b0-1_blInaction_SEs
+sokocoin0,100,0.1,Estimate,Inaction,0.1,45.0,35.0,../../Results/sokocoin0/QLearning/2023_07_24-19_32_e100lr0-1SEsblInag0-99b0-1
+sokocoin0,100,0.1,Estimate,Inaction,0.1,45.0,35.0,../../Results/sokocoin0/QLearning/2023_07_24-19_33_e100_lr0-1_SEs_blIna_g0-99_b0-1
+sokocoin0,10000,0.1,Estimate,Inaction,0.05,45.0,35.0,../../Results/sokocoin0/RRLearning/2023_07_24-19_46_e10000_lr0-1_SEst_blInac_g1-0_b0-05
