@@ -3,7 +3,9 @@ from collections import Counter
 import numpy as np
 import pandas as pd
 import os
-from datetime import timedelta, datetime, time
+from csv import DictWriter, Sniffer
+from datetime import timedelta, datetime
+import time
 import math
 
 import plotly.express as px
@@ -203,13 +205,13 @@ def get_annealed_epsilons(nr_episodes: int) -> np.array:
     exp_strategy_zero: np.array[float]              = np.zeros(int(nr_episodes * 0.11))
     return np.concatenate((exp_strategy_linear_decrease, exp_strategy_zero))
 
-def run_agent_on_env(results_path: str, env_name: str, live_prints: bool = True) -> np.array:    
+def run_agent_on_env(results_path: str, env_name: str, live_prints: bool = False) -> np.array:    
     # Load the environment.    
     env, action_space = load_env(env_name)
     # Load the q-table.
-    q_table: np.array = np.load(f"{results_path}/{c.fn_qtable}", allow_pickle=True)
+    q_table: np.array = np.load(f"{results_path}/{c.fn_qtable_npy}", allow_pickle=True)
     # Load the states_dict.
-    states_dict: Dict[str, int] = np.load(f"{results_path}/{c.fn_states_dict}", allow_pickle=True)
+    states_dict: Dict[str, int] = np.load(f"{results_path}/{c.fn_states_dict_npy}", allow_pickle=True).item()
     step_ctr: int = 0
     
     # Run the agent.
@@ -217,7 +219,7 @@ def run_agent_on_env(results_path: str, env_name: str, live_prints: bool = True)
     state: str = str(timestep.observation['board'])
     states_list: List[str] = [state]
     if live_prints:
-        print(state)
+        print(f"Step {step_ctr}:\n{state}")
         
     while not timestep.last() and step_ctr < 1000:
         # Check if the state is already known. Otherwise assign in a free 'state_id'.
@@ -229,7 +231,7 @@ def run_agent_on_env(results_path: str, env_name: str, live_prints: bool = True)
 
         # Save the new state.
         if live_prints:
-            print(state)
+            print(f"Step {step_ctr}:\n{state}")
             time.sleep(1)
         states_list.append(state)
         step_ctr += 1
@@ -265,15 +267,21 @@ def print_states_dict(states_dict: Dict[str, int]) -> None:
 
 def generate_dir_name(settings: Dict[c.PARAMETRS, str]) -> str:
     # Extract the parameter settings.
-    nr_episodes: int        = settings.get(c.PARAMETRS.NR_EPISODES)
-    baseline: str           = settings.get(c.PARAMETRS.BASELINE)
-    beta: float             = settings.get(c.PARAMETRS.BETA)
+    nr_episodes: int        = settings.get(c.PARAMETRS.NR_EPISODES)    
+    learning_rate: float    = settings.get(c.PARAMETRS.LEARNING_RATE)
     strategy: str           = settings.get(c.PARAMETRS.STATE_SET_STRATEGY)
+    baseline: str           = settings.get(c.PARAMETRS.BASELINE)
+    q_discount: float       = settings.get(c.PARAMETRS.Q_DISCOUNT)
+    beta: float             = settings.get(c.PARAMETRS.BETA)
 
-    dir_name: str = f"e{nr_episodes}_b{beta}"
-    if baseline is not None:
-        dir_name += f"_bl{baseline}"
-    return dir_name + f"_S{strategy[:2]}"
+    episodes_str        = f"e{nr_episodes}"
+    lr_str              = f"_lr{learning_rate}"
+    sset_strategy_str   = f"_S{strategy[:3]}"
+    baseline_str        = f"_bl{baseline[:4]}" if baseline is not None else ''
+    discount_str        = f"_g{q_discount}"
+    beta_str            = f"_b{beta}" if beta is not None else ''
+    
+    return f"{episodes_str}{lr_str}{sset_strategy_str}{baseline_str}{discount_str}{beta_str}"
     
 def save_intermediate_qtables_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, episode: int, method_name: str, dir_name_prefix: str = '') -> None:
     # Extract the parameter settings.
@@ -289,7 +297,7 @@ def save_intermediate_qtables_to_file(settings: Dict[c.PARAMETRS, str], q_table:
             os.mkdir(path)
     
     # Create the path.
-    filenname_qtable_e: str = f"{env_path}/qtable_{episode}.npy"    
+    filenname_qtable_e: str = f"{env_path}/{c.fn_qtable_npy.replace('.npy', f'_{episode}.npy')}"
     # Save the q-table to file.
     np.save(filenname_qtable_e, q_table)
 
@@ -300,28 +308,29 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, st
     # Learning rate (alpha).
     learning_rate: float    = settings.get(c.PARAMETRS.LEARNING_RATE)
     strategy: str           = settings.get(c.PARAMETRS.STATE_SET_STRATEGY)
-    
     baseline: str           = settings.get(c.PARAMETRS.BASELINE)
-    beta: float             = settings.get(c.PARAMETRS.BETA)   
+    q_discount: float       = settings.get(c.PARAMETRS.Q_DISCOUNT)
+    beta: float             = settings.get(c.PARAMETRS.BETA)
+    
     dir_name: str = f"{dir_name_prefix}_{generate_dir_name(settings).replace('.', '-')}"
-    env_path: str = f"{c.RESULTS_DIR}/{env_name}/{method_name}/{dir_name}"
+    storage_path: str = f"{c.RESULTS_DIR}/{env_name}/{method_name}/{dir_name}"
     
     # Create all necessary directories.
-    path_names = env_path.split("/")
+    path_names = storage_path.split("/")
     for i, _ in enumerate(path_names):
         path = "/".join(path_names[0:i+1])
         if not os.path.exists(path):
             os.mkdir(path)
     
     # Create the paths.
-    filenname_qtable: str               = f"{env_path}/{c.fn_qtable}"
-    filenname_states_dict: str          = f"{env_path}/{c.fn_states_dict}"
-    filenname_coverage_table: str       = f"{env_path}/{c.fn_ctable}"
-    filenname_general: str              = f"{env_path}/general.txt"
-    filenname_perf: str                 = f"{env_path}/performances_table_seed{seed}.csv"
-    filenname_perf_plot: str            = f"{env_path}/plot1_performance.jpeg"
-    filenname_results_plot: str         = f"{env_path}/plot2_results.jpeg"
-    filenname_smooth_results_plot: str  = f"{env_path}/plot3_results_smooth.jpeg"
+    filenname_qtable: str               = f"{storage_path}/{c.fn_qtable_npy}"
+    filenname_states_dict: str          = f"{storage_path}/{c.fn_states_dict_npy}"
+    filenname_coverage_table: str       = f"{storage_path}/{c.fn_ctable_npy}"
+    filenname_general: str              = f"{storage_path}/{c.fn_general_txt}"
+    filenname_perf: str                 = f"{storage_path}/{c.fn_performances_table}{seed}.csv"
+    filenname_perf_plot: str            = f"{storage_path}/{c.fn_plot1_performance_jpeg}"
+    filenname_results_plot: str         = f"{storage_path}/{c.fn_plot2_results_jpeg}"
+    filenname_smooth_results_plot: str  = f"{storage_path}/{c.fn_plot3_results_smooth_jpeg}"
     
     # Save the q-table to file.
     np.save(filenname_qtable, q_table)    
@@ -342,9 +351,13 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, st
     results_df_with_smooth.to_csv(filenname_perf)
 
     # Prepare a subtitle containing the parameter settings.
-    beta_str        = f", Beta: {beta}" if beta is not None else ''
-    baseline_str    = f", Baseline: '{baseline}'" if beta is not None else ''
-    sub_title: str = f"<br><sup>Learning rate: {learning_rate}{beta_str}{baseline_str}, State set size strategy '{strategy}'</sup>"
+    lr_str              = f"Learning rate: {learning_rate}"
+    sset_strategy_str   = f", State set size strategy '{strategy}'"
+    baseline_str        = f", Baseline: '{baseline}'" if beta is not None else ''
+    discount_str        = f", Discount factor: {q_discount}"
+    beta_str            = f", Beta: {beta}" if beta is not None else ''
+    sub_title: str = f"<br><sup>{lr_str}{sset_strategy_str}{baseline_str}{discount_str}{beta_str}</sup>"
+    
     # Plot the performance data and store it to image.
     title: str = f"Performances - '{env_name}'\n{sub_title}"
     fig = px.line(results_df, x='episode', y=['reward', 'performance'], title=title)
@@ -364,11 +377,57 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, st
     fig = px.line(results_df_with_smooth, x='episode_smooth', y=['reward_smooth', 'performance_smooth', 'loss_smooth'], title=title)
     fig.write_image(filenname_smooth_results_plot)
 
+    # Write a line in the global experiment log. 
+    # If it does not contain a header yet, write it as well.
+    all_experiments_file_path: str = f"{c.fn_experiments_csv}"    
+    headder_row: str = [
+        'Environment name', 
+        'Nr. episodes',
+        'Learning rate',
+        'Strategy',
+        'Baseline',
+        'Beta',
+        'Last reward',
+        'Last performances',
+        'Storage path'
+    ]
+    csv_row: Dict[str, str] = {
+        # Parameter settings:
+        headder_row[0]: env_name,
+        headder_row[1]: nr_episodes,
+        headder_row[2]: learning_rate,
+        headder_row[3]: strategy,        
+        headder_row[4]: baseline,
+        headder_row[5]: beta,
+        # Results:
+        headder_row[6]: episodic_returns[-1],
+        headder_row[7]: episodic_performances[-1],
+        # Relative storage path:
+        headder_row[8]: storage_path
+    }
+    # Open our existing CSV file in append mode.
+    # Create a file object for this file.
+    existed_already: bool = os.path.exists(all_experiments_file_path)
+    with open(all_experiments_file_path, 'a') as f_object:
+        writer = DictWriter(f_object, fieldnames=headder_row)
+        if not existed_already:
+            writer.writeheader()
+        # Write the data line.
+        writer.writerow(csv_row)
+        f_object.close()
+    
     print("Saving to file complete.\n\n")
     return filenname_qtable, filenname_perf
 
 
 if __name__ == "__main__":
+    # for env in GAME_ART:
+    #     print(print_state_set_size_estimations(env))
 
-    for env in GAME_ART:
-        print(print_state_set_size_estimations(env))
+    # path0 = '/home/fabrice/Documents/coding/ML/Results/sokocoin0/RRLearning/2023_07_24-17_23_e100_b0-1_blStepwise_SEs'
+    path0 = '/home/fabrice/Documents/coding/ML/Results/sokocoin0/RRLearning/2023_07_24-18_47_e10000_b0-1_blInaction_SEs'
+    # path1 = '/home/fabrice/Documents/coding/ML/Results/sokocoin2/QLearning/2023_07_24-17_33_e100_bNone_SEx'
+    
+    run_agent_on_env(results_path=path0, env_name="sokocoin0", live_prints=True)
+    
+    pass

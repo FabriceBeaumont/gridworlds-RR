@@ -7,13 +7,20 @@ from enum import Enum
 MAX_NR_ACTIONS: int = 100
 RESULTS_DIR: str    = "../../Results"    
 
-fn_states: str      = "states.npy"
-fn_id_states: str   = "states_id_str.npy"        
-fn_actions: str     = "actions.npy"    
-fn_runtime: str     = "states_rt.npy"
-fn_qtable: str      = "qtable.npy"
-fn_ctable: str      = "ctable.npy"
-fn_states_dict: str = "states_id_dict.npy"
+fn_states_npy: str      = "states.npy"
+fn_id_states_npy: str   = "states_id_str.npy"        
+fn_actions_npy: str     = "actions.npy"    
+fn_runtime_npy: str     = "states_rt.npy"
+fn_qtable_npy: str      = "qtable.npy"
+fn_ctable_npy: str      = "ctable.npy"
+fn_states_dict_npy: str = "states_id_dict.npy"
+fn_experiments_csv: str = "AllExperiments.csv"
+
+fn_general_txt: str                 = "general.txt"
+fn_performances_table: str          = "performances_table_seed"
+fn_plot1_performance_jpeg: str      = "plot1_performance.jpeg"
+fn_plot2_results_jpeg: str          = "plot2_results.jpeg"
+fn_plot3_results_smooth_jpeg: str   = "plot3_results_smooth.jpeg"
 
 class Strategies(Enum):
     ESTIMATE_STATES: str   = "Estimate"

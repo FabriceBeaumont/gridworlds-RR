@@ -113,12 +113,12 @@ class StateSpaceBuilder():
         if not os.path.exists(file_path): os.mkdir(file_path)
         
         # Dict[str, id] - Given an id, return the state.
-        filenname_states_id: str    = f"{file_path}/{c.fn_states}"
+        filenname_states_id: str    = f"{file_path}/{c.fn_states_npy}"
         # Dict[id, str] - Given a state, return its id.
-        filenname_id_states: str    = f"{file_path}/{c.fn_id_states}"
+        filenname_id_states: str    = f"{file_path}/{c.fn_id_states_npy}"
         # Dict[str, actions_list:np.array].    
-        filenname_actions: str      = f"{file_path}/{c.fn_actions}"
-        filenname_runtime: str      = f"{file_path}/{c.fn_runtime}"
+        filenname_actions: str      = f"{file_path}/{c.fn_actions_npy}"
+        filenname_runtime: str      = f"{file_path}/{c.fn_runtime_npy}"
 
         # If the states have been computed before, load them from file.
         if os.path.exists(filenname_states_id) and allow_loading_and_saving:
@@ -201,9 +201,6 @@ def run_q_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, se
         
     _last_state_id: int = None
     _last_action: int   = None
-    _start_time: float = time.time()
-    _all_episodes_rt_sum: float = 0.
-    _rt_estimation_str: str = ''
 
     # Run training.
     # Record the performance of the agent (run until the time has run out) for 'number_episodes' many episodes.
@@ -368,11 +365,9 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, s
         print("Completed!")
     timestep = env.reset()
       
-    _last_state_id: int = None
+    _state_old_id: int = None
     _last_action: int   = None
-    _start_time: float = time.time()
-    _all_episodes_rt_sum: int = 0
-    _rt_estimation_str: str = ''
+    _use_encountered_states_for_avg_only: bool = False
     
     # Run training.
     # Record the performance of the agent (run until the time has run out) for 'number_episodes' many episodes.
@@ -381,10 +376,10 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, s
             # Get the initial set of observations from the environment.
             timestep = env.reset()
             # Reset the variables for each episode.
-            _current_state: str         = ""
-            _last_state: str            = ""
-            _current_state_id: int      = None
-            _last_state_id: int         = None
+            _state_new: str         = ""
+            _state_old: str            = ""
+            _state_new_id: int      = None
+            _state_old_id: int         = None
             _last_action: int           = None
             _actions_so_far_ctr: int    = 0
             _actions_so_far: List[int]  = []
@@ -393,32 +388,35 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, s
 
             _baseline_state_id: int     = None
 
+            if _use_encountered_states_for_avg_only: _set_set: Set[str] = set()
+            
             while True:
                 # Perform a step.
-                _current_state: str = str(timestep.observation['board'])
-                _current_state_id = states_set.get_state_id(_current_state)       
+                _state_new: str = str(timestep.observation['board'])
+                if _use_encountered_states_for_avg_only: _set_set.add(_state_new)
+                _state_new_id = states_set.get_state_id(_state_new)       
 
                 # If this is the initial state, save its id as baseline.
                 # Thus by default the starting state basline is set. If another baseline-setting is used, it will be overwritten anyways.
                 # Note that in this case, we do not have any reference q-values for states/actions before, and thus cannot update anything.
-                if _last_state_id is None:
-                    _baseline_state_id = _current_state_id
+                if _state_old_id is None:
+                    _baseline_state_id = _state_new_id
                 # If this is NOT the initial state, update the q-values.
                 else:
                     _baseline_state_id = get_the_baseline_state_id(_baseline_state_id, _actions_so_far)
                     
-                    # UPDATE REACHABILITIES.
+                    # UPDATE REACHABILITIES. Reachability is a measure of states that can be reached(?).
                     # Compute the coverage reward. It is simly 1.0, if the new state equals the last. And zero otherwise.
-                    c_reward = int(_last_state_id == _current_state_id)
-                    # Calculate the coverage delta. '[c_reward + V(s_old) - V(s_new)]'.
+                    c_reward = int(_state_old_id == _state_new_id)
+                    # Calculate the coverage delta. '[c_reward + V(s_new) - V(s_old)]'.
                     # We get the coverage value of a state s as the column 'c_table[:, s]', since this is the column of all coverages 'C(x,s)' from any state 'x'.
-                    c_delta = c_reward + q_discount * c_table[:, _last_state_id] - c_table[:, _current_state_id]
-                    # Update the q-values. 'V(s_new) = V(s_new) + alpha * [c_discount + V(s_old) - V(s_new)]'.
-                    c_table[:, _current_state_id] += learning_rate * c_delta
+                    c_delta = c_reward + q_discount * c_table[:, _state_new_id] - c_table[:, _state_old_id]
+                    # Update the q-values. 'V(s_old) = V(s_old) + alpha * [c_discount + V(s_new) - V(s_old)]'.
+                    c_table[:, _state_old_id] += learning_rate * c_delta
 
                     # CALCULATE RELATIVE REACHABILITY. - first formula page 7 in paper "Peanalizing.."
                     # Compute the absolute reachability of all other states from the current state, compared to from the baseline state.
-                    diff: np.array = c_table[_baseline_state_id, :] - c_table[_current_state_id, :]
+                    diff: np.array = c_table[_baseline_state_id, :] - c_table[_state_new_id, :]
                     # Apply the maximum function. This ensures, that we do not punish reachabilities higher than the one of the baseline.
                     diff[diff<0] = 0.0
                     # Average this reachability (clipped to non-negative values) to get the relative reachability.
@@ -426,15 +424,16 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, s
                     # then we can use a beta of 'beta * (1+E/|S|)' to expect the same restults as when using 'beta' and the correct size '|S|'.
                     # [Since: 1 / (|S| + E) ==> wrong by factor 1 / (1+E/|S|) ].
                     d_rr: float = np.mean(diff)
+                    if _use_encountered_states_for_avg_only: d_rr * len(diff) / len(_set_set)
                     
                     # UPDATE Q-VALUES.
                     rr_reward = timestep.reward - beta * d_rr
                     # Get the best action according to the q-table (trained so far).
-                    max_action = hf.get_best_action(q_table, _current_state_id, action_space)
+                    max_action = hf.get_best_action(q_table, _state_new_id, action_space)
                     # Calculate the q-value delta.
-                    q_delta = (rr_reward + q_discount * q_table[_current_state_id, max_action] - q_table[_last_state_id, _last_action])
+                    q_delta = (rr_reward + q_discount * q_table[_state_new_id, max_action] - q_table[_state_old_id, _last_action])
                     # Update the q-values.
-                    q_table[_last_state_id, _last_action] += learning_rate * q_delta
+                    q_table[_state_old_id, _last_action] += learning_rate * q_delta
 
 
                     # We define the loss as the 'squared temporal difference error'. In this case the delta^2.
@@ -456,18 +455,18 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, s
                     break
                 # Otherwise get the next action (according to the greedy exploration policy) and perform the step.
                 else: 
-                    action: int = hf.get_greedy_policy_action(exploration_epsilon, _current_state_id, action_space, q_table)
+                    action: int = hf.get_greedy_policy_action(exploration_epsilon, _state_new_id, action_space, q_table)
                     timestep = env.step(action)
                     _actions_so_far_ctr += 1
                     _actions_so_far.append(action)
 
                 # Update the floop-variables.
-                _last_state: str    = _current_state
-                _last_state_id: int = _current_state_id
+                _state_old: str    = _state_new
+                _state_old_id: int = _state_new_id
                 _last_action: int   = action
 
             # Save the intermediate q-tables for further research.
-            if episode % (nr_episodes // 3) == 0:
+            if episode == (nr_episodes // 3) or episode == 2 * (nr_episodes // 3):
                 hf.save_intermediate_qtables_to_file(settings, q_table, episode, method_name, dir_name_prefix=time_tag)
             bar()
 
@@ -479,6 +478,20 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, s
     return episodic_returns, episodic_performances
 
 def create_settings_dict(env_name: str, nr_episodes: int, learning_rate: float = None, state_set_strategy: str = None, q_discount: float = None, baseline: str = None, beta: float = None) -> Dict[PARAMETRS, str]:
+    """Store the parameter settings in a dictionary for simplified forwarding of the parameters.
+
+    Args:
+        env_name (str): Name of the gridworlds environment.
+        nr_episodes (int): Number of learning episodes.
+        learning_rate (float, optional): Factor to weight the computed delta for coverage and q-values. Assume values in (0,1).
+        state_set_strategy (str, optional): Strategy to explore or estimate the number of possible states. Defaults to None.
+        q_discount (float, optional): Factor to weight of the coverage and q-value of furture states. Defaults to None.
+        baseline (str, optional): Baseline definition in the RR-Algorithm. Defaults to None.
+        beta (float, optional): Factor to weight the relative reachability penality on the given reward. Beta = 0.0 implies standard Q-Learning. Defaults to None.
+
+    Returns:
+        Dict[PARAMETRS, str]: Dictionary of all possibly set parameters and their values.
+    """
     settings: Dict[PARAMETRS, Any] = dict()
 
     settings[PARAMETRS.ENV_NAME]            = env_name
@@ -488,7 +501,7 @@ def create_settings_dict(env_name: str, nr_episodes: int, learning_rate: float =
     settings[PARAMETRS.BASELINE]            = baseline
     settings[PARAMETRS.Q_DISCOUNT]          = q_discount
     settings[PARAMETRS.BETA]                = beta
-
+    
     return settings
 
 # EXPERIMENTS
@@ -525,17 +538,33 @@ def demo():
     # Perform the learning using an preprocessed exploration of the state space size.
     run_experiments_q_vs_rr(env_names, nr_episodes, learning_rates, discount_factors, betas, baselines, strategy=Strategies.EXPLORE_STATES, save_coverage_table=True)
 
-def experiment_right_box_movement():    
-    settings = create_settings_dict(
-        env_name=Environments.SOKOCOIN0.value, 
-        nr_episodes=10000, 
-        learning_rate=0.1,
-        state_set_strategy=Strategies.ESTIMATE_STATES.value, 
-        q_discount=0.99, 
-        baseline=Baselines.INACTION_BASELINE.value, 
-        beta=0.1
-    )
-    run_rr_learning(settings, save_coverage_table=True)
+def experiment_right_box_movement_girdsearch():    
+    for lr in [0.1, 0.5, 1.0]:
+        for discount in [0.5, 0.9, 1.0]:
+            for beta in [0.05, 0.5, 2]:
+                settings = create_settings_dict(
+                    env_name=Environments.SOKOCOIN0.value, 
+                    nr_episodes=10000, 
+                    learning_rate=lr,
+                    state_set_strategy=Strategies.ESTIMATE_STATES.value, 
+                    q_discount=discount, 
+                    baseline=Baselines.INACTION_BASELINE.value, 
+                    beta=beta
+                )
+                run_rr_learning(settings, save_coverage_table=True)
+
+def check_bl():    
+    for bl in [Baselines.STARTING_STATE_BASELINE.value, Baselines.INACTION_BASELINE.value, Baselines.STEPWISE_INACTION_BASELINE.value]:
+        settings = create_settings_dict(
+            env_name=Environments.SOKOCOIN0.value, 
+            nr_episodes=100, 
+            learning_rate=1.,
+            state_set_strategy=Strategies.ESTIMATE_STATES.value, 
+            q_discount=1.0,
+            baseline=bl, 
+            beta=1.0
+        )
+        run_rr_learning(settings, save_coverage_table=True)
 
 def experiment_complete_estimate():
     env_names: Environments         = [Environments.SOKOCOIN0, Environments.SOKOCOIN2]
@@ -548,12 +577,7 @@ def experiment_complete_estimate():
     run_experiments_q_vs_rr(env_names, nr_episodes, learning_rates, discount_factors, betas, baselines, strategy=Strategies.EXPLORE_STATES)
 
 if __name__ == "__main__":
-    demo()
-    
-    # TODO: Test run agent
-    # TODO: experiment_right_box_movement()
-    
-    # TODO: Run Debugging - check 
-    # q table construction,
-    # c table constrution
-    # baseline comptation.
+    check_bl()
+    # experiment_right_box_movement_girdsearch()
+        
+    # TODO: FB: Render the environements. Maybe even to Gif. > Run agent.
