@@ -361,11 +361,10 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, s
 
         inaction_baseline_states: np.array = np.array(tmp_states_ids_lst, dtype=int)
         print("Completed!")
-    timestep = env.reset()
-      
-    _state_old_id: int = None
+    
+    state_old_id: int = None
     _last_action: int   = None
-    _use_encountered_states_for_avg_only: bool = False
+    _use_encountered_states_for_avg_only: bool = True # TODO: Feature or not?
     
     # Run training.
     # Record the performance of the agent (run until the time has run out) for 'number_episodes' many episodes.
@@ -374,10 +373,10 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, s
             # Get the initial set of observations from the environment.
             timestep = env.reset()
             # Reset the variables for each episode.
-            _state_new: str             = ""
-            _state_old: str             = ""
-            _state_new_id: int          = None
-            _state_old_id: int          = None
+            state_new: str             = ""
+            state_old: str             = ""
+            state_new_id: int           = None
+            state_old_id: int           = None
             _last_action: int           = None
             _actions_so_far_ctr: int    = 0
             _actions_so_far: List[int]  = []
@@ -386,58 +385,80 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, s
 
             _baseline_state_id: int     = None
 
-            if _use_encountered_states_for_avg_only: _set_set: Set[str] = set()
+            _states_set: Set[str] = set()
+            _states_id_set: Set[str] = set()
             
             while True:
                 # Perform a step.
-                _state_new: str = str(timestep.observation['board'])
-                if _use_encountered_states_for_avg_only: _set_set.add(_state_new)
-                _state_new_id = states_set.get_state_id(_state_new)       
+                state_new: str = str(timestep.observation['board'])
+                _states_set.add(state_new)
+                state_new_id = states_set.get_state_id(state_new)
+                _states_id_set.add(state_new_id)
+
+                if verbose:
+                    print(f"\n\nFrom OLD state {state_old_id}\n{state_old}")
+                    print(f"To NEW state {state_new_id}\n{state_new}")
 
                 # If this is the initial state, save its id as baseline.
                 # Thus by default the starting state basline is set. If another baseline-setting is used, it will be overwritten anyways.
                 # Note that in this case, we do not have any reference q-values for states/actions before, and thus cannot update anything.
-                if _state_old_id is None:
-                    _baseline_state_id = _state_new_id
+                if state_old_id is None:
+                    _baseline_state_id = state_new_id
                 # If this is NOT the initial state, update the q-values.
                 else:
                     _baseline_state_id = get_the_baseline_state_id(_baseline_state_id, _actions_so_far)
                     
                     # UPDATE REACHABILITIES. Reachability is a measure of states that can be reached(?).
-                    # Compute the coverage reward. It is simly 1.0, if the new state equals the last. And zero otherwise.
-                    c_reward = int(_state_old_id == _state_new_id)
-                    # Calculate the coverage delta. '[c_reward + V(s_new) - V(s_old)]'.
-                    # We get the coverage value of a state s as the column 'c_table[:, s]', since this is the column of all coverages 'C(x,s)' from any state 'x'.
-                    c_delta = c_reward + q_discount * c_table[:, _state_new_id] - c_table[:, _state_old_id]
-                    # Update the q-values. 'V(s_old) = V(s_old) + alpha * [c_discount + V(s_new) - V(s_old)]'.
-                    c_table[:, _state_old_id] += learning_rate * c_delta
+                    
+                    # Calculate the coverage delta: '[c_reward + V(s_new) - V(s_old)]'.
+                    # We update the coverage functions for all states 's'. Since the coverage value of a state 'j', when starting at state 'i' is denoted
+                    # as matrix entry 'C_{i,j}', we compare the coverage values for all states when starting at the old vs. the new state. 
+                    # Thus these are the rows of the coverage matrix.
+                    c_delta = q_discount * c_table[state_new_id, :] - c_table[state_old_id, :]
+                    # Add the coverage reward. It is simly 1.0, if the new state equals the last. And zero otherwise. Thus we add it to the right index.
+                    c_delta[state_new_id] += 1
+                    # Update the c-values. 'V(s_old) = V(s_old) + alpha * [c_discount + V(s_new) - V(s_old)]'.
+                    c_table[state_old_id, :] += learning_rate * c_delta
 
                     # CALCULATE RELATIVE REACHABILITY. - first formula page 7 in paper "Peanalizing.."
                     # Compute the absolute reachability of all other states from the current state, compared to from the baseline state.
-                    diff: np.array = c_table[_baseline_state_id, :] - c_table[_state_new_id, :]
+                    diff: np.array = c_table[_baseline_state_id, :] - c_table[state_new_id, :]
                     # Apply the maximum function. This ensures, that we do not punish reachabilities higher than the one of the baseline.
                     diff[diff<0] = 0.0
-                    if any(diff):
-                        print("Non-zero difference")
+                    # if any(diff):
+                    #     print("Non-zero difference")
                     # Average this reachability (clipped to non-negative values) to get the relative reachability.
                     # Notice that if we estimate the size of the state space, and are wrong by 'E', that is the estimated size is '|S| + E',
                     # then we can use a beta of 'beta * (1+E/|S|)' to expect the same restults as when using 'beta' and the correct size '|S|'.
                     # [Since: 1 / (|S| + E) ==> wrong by factor 1 / (1+E/|S|) ].
-                    d_rr: float = np.mean(diff)
-                    if _use_encountered_states_for_avg_only: d_rr * len(diff) / len(_set_set)
-                    if d_rr > 0:
-                        print("Non-zero rr-penalty")
+                    factor: float = 1.0
+                    if _use_encountered_states_for_avg_only:
+                        factor = len(diff) / len(_states_set)
+                    d_rr: float = np.mean(diff) * factor
+                    # if d_rr > 0:
+                    #     print("Non-zero rr-penalty")
                     
                     # UPDATE Q-VALUES.
                     rr_reward = timestep.reward - beta * d_rr
                     # Get the best action according to the q-table (trained so far).
-                    max_action = hf.get_best_action(q_table, _state_new_id, action_space)
+                    max_action = hf.get_best_action(q_table, state_new_id, action_space)
                     # Calculate the q-value delta.
-                    q_delta = (rr_reward + q_discount * q_table[_state_new_id, max_action] - q_table[_state_old_id, _last_action])
+                    q_delta = (rr_reward + q_discount * q_table[state_new_id, max_action] - q_table[state_old_id, _last_action])
                     # Update the q-values.
-                    q_table[_state_old_id, _last_action] += learning_rate * q_delta
+                    q_table[state_old_id, _last_action] += learning_rate * q_delta
 
-
+                    if verbose:
+                        print("Value functions")
+                        print(f"s_OLD -> S:\t{np.around(c_table[state_old_id, :], 2)}")
+                        print(f"s_NEW -> S:\t{np.around(c_table[state_new_id, :], 2)}")
+                        print(f"RR-reward punishment:\t{d_rr}")
+                        print(f"New env-reward:\t{rr_reward}")
+                        print("Q-Table values:")
+                        print(f"Q(s_OLD({state_old_id}), {_last_action}={c.ACTIONS.get(_last_action)}:\t{np.around(q_table[state_old_id, _last_action], 2)}")
+                        print(f"Q(s_NEW({state_new_id}), {max_action}={c.ACTIONS.get(max_action)} (best):\t{np.around(q_table[state_new_id, max_action], 2)}")
+                        print(f"C-Table for SxS with S={_states_id_set}:\n{c_table[list(_states_id_set), list(_states_id_set)]}")
+                        print(f"Q-Table for states S={_states_id_set}:\n{q_table[list(_states_id_set), :]}")
+                    
                     # We define the loss as the 'squared temporal difference error'. In this case the delta^2.
                     # Accumulate the squared delta for 'loss_frequency' many uniformly-selected episodes.
                     if not(episode % (nr_episodes//loss_frequency)):
@@ -457,14 +478,14 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, s
                     break
                 # Otherwise get the next action (according to the greedy exploration policy) and perform the step.
                 else: 
-                    action: int = hf.get_greedy_policy_action(exploration_epsilon, _state_new_id, action_space, q_table)
+                    action: int = hf.get_greedy_policy_action(exploration_epsilon, state_new_id, action_space, q_table)
                     timestep = env.step(action)
                     _actions_so_far_ctr += 1
                     _actions_so_far.append(action)
 
                 # Update the floop-variables.
-                _state_old: str    = _state_new
-                _state_old_id: int = _state_new_id
+                state_old: str    = state_new
+                state_old_id: int = state_new_id
                 _last_action: int   = action
 
             # Save the intermediate q-tables for further research.
@@ -541,30 +562,30 @@ def demo():
     run_experiments_q_vs_rr(env_names, nr_episodes, learning_rates, discount_factors, betas, baselines, strategy=Strategies.EXPLORE_STATES, save_coverage_table=True)
 
 def experiment_right_box_movement_girdsearch():    
-    for lr in [0.1, 0.5, 1.0]:
-        for discount in [0.5, 0.9, 1.0]:
-            for beta in [0.05, 0.5, 2]:
+    for lr in [0.5]:      # 0.1, 0.5, 1.0
+        for discount in [0.99, 1.0]:
+            for beta in [0.05, 20]:
                 settings = create_settings_dict(
                     env_name=Environments.SOKOCOIN0.value, 
-                    nr_episodes=10000, 
+                    nr_episodes=1000, 
                     learning_rate=lr,
                     statespace_strategy=Strategies.ESTIMATE_STATES.value, 
                     q_discount=discount, 
                     baseline=Baselines.STARTING_STATE_BASELINE.value, 
                     beta=beta
                 )
-                run_rr_learning(settings, save_coverage_table=True)
+                run_rr_learning(settings, verbose=False, save_coverage_table=True)
 
 def tiny_runtest_rr():    
     for bl in [Baselines.STARTING_STATE_BASELINE.value, Baselines.STEPWISE_INACTION_BASELINE.value]:
         settings = create_settings_dict(
             env_name=Environments.SOKOCOIN0.value, 
             nr_episodes=10000, 
-            learning_rate=1.,
+            learning_rate=.1,
             statespace_strategy=Strategies.ESTIMATE_STATES.value,
             q_discount=1.0,
             baseline=bl, 
-            beta=1.0
+            beta=.05
         )
         run_rr_learning(settings, save_coverage_table=True)
 
@@ -579,8 +600,8 @@ def experiment_complete_estimate():
     run_experiments_q_vs_rr(env_names, nr_episodes, learning_rates, discount_factors, betas, baselines, strategy=Strategies.EXPLORE_STATES)
 
 if __name__ == "__main__":
-    tiny_runtest_rr()
+    experiment_right_box_movement_girdsearch()
     # experiment_right_box_movement_girdsearch()
         
-    # TODO: FB: Render the environements. Maybe even to Gif. > Run agent. TODO: Unused code in 'not_used.py'. Eliminate inaction baseline from experiments.
-    # TODO: FB: Implement usage of a sparse matrix.
+    # TODO extras: Render the environements. Maybe even to Gif. > Run agent. TODO: Unused code in 'not_used.py'. Eliminate inaction baseline from experiments.
+    # TODO extras: Implement usage of a sparse matrix.

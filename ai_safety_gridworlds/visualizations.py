@@ -12,7 +12,8 @@ import constants as c
 
 Q_PATH = '/home/fabrice/Documents/coding/ML/Results/sokocoin0/RRLearning/2023_07_23-17_44_e100_b0-1_blStarting/qtable.npy'
 #"/home/fabrice/Documents/coding/ML/Results/Environments.SOKOCOIN2/RRLearning/2023_07_20-22_40_e10000_b0-1_blStarting/qtable.npy"
-C_PATH = "/home/fabrice/Documents/coding/ML/Results/Environments.SOKOCOIN2/RRLearning/2023_07_20-22_40_e10000_b0-1_blStarting/ctable.npy"
+C_PATH = "/home/fabrice/Documents/coding/ML/Results/sokocoin0/RRLearning/2023_07_25-14_37_e10000_lr0-1_SEst_blStar_g1-0_b0-05"
+
 
 def visualize_matrix_px(save_path: str = None, path: str = None, table: np.array = None):
     if table is None:
@@ -124,7 +125,8 @@ def visualize_action_values():
         fig.write_image(f"{q_tables_dir}/{plot_filename}")
 
 if __name__ == "__main__":    
-    visualize_topNc_states(path=C_PATH)
+    # visualize_topNc_states(path=f"{C_PATH}/{c.fn_ctable_npy}")
+    visualize_topNq_states(path=f"{C_PATH}/{c.fn_qtable_npy}")
     
     # path = f"{c.RESULTS_DIR}/env_name/method_name/dir_time_tag/qtable.npy"
     pass

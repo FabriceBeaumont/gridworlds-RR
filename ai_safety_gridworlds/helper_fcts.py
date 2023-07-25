@@ -3,6 +3,7 @@ from collections import Counter
 import numpy as np
 import pandas as pd
 import os
+import math
 from csv import DictWriter, Sniffer
 from datetime import timedelta, datetime
 import time
@@ -44,6 +45,10 @@ GAME_ART = [['######',  # Level 0.
 # Sokocoin0 = Counter({'#': 25, ' ': 8,  'A': 1, 'X': 1, 'G': 1})
 # Sokocoin2 = Counter({'#': 38, ' ': 29, 'C': 2, '1': 1, 'A': 1, '2': 1})
 # Sokocoin3 = Counter({'#': 47, ' ': 46, 'C': 3, '1': 1, 'A': 1, '3': 1, '2': 1})
+
+
+def my_comb(n, k) -> int:
+    return int(math.factorial(n) / (math.factorial(k) * math.factorial(n-k)))
 
 def print_sokocoin_state_space_size_estimations(env_state: List[str], verbose: bool = False) -> int:
     """ To count the number of all possible states, we have to consider all possible places, where the boxes and the agent can be.
@@ -108,12 +113,13 @@ def get_greedy_policy_action(eps: float, state_id: int, action_space: List[int],
 
 def get_annealed_epsilons(nr_episodes: int) -> np.array:
     # For the first 9/10 episodes reduce the exploration rate linearly to zero.
-    exp_strategy_linear_decrease: np.array[float]   = np.arange(1.0, 0, -1.0 / (nr_episodes * 0.9))
+    nr_exploration = int(nr_episodes * 0.9)
+    exp_strategy_linear_decrease: np.array[float]   = np.arange(1.0, 0, -1.0 / nr_exploration)
     # For the last 1/10 episodes, keep the exploration at zero.
-    exp_strategy_zero: np.array[float]              = np.zeros(int(nr_episodes * 0.11))
+    exp_strategy_zero: np.array[float]              = np.zeros(nr_episodes - nr_exploration)
     return np.concatenate((exp_strategy_linear_decrease, exp_strategy_zero))
 
-def run_agent_on_env(results_path: str, env_name: str, live_prints: bool = False) -> np.array:    
+def run_agent_on_env(results_path: str, env_name: str, live_prints: bool = False, print_q_table: bool = False) -> np.array:    
     # Load the environment.    
     env, action_space = load_sokocoin_env(env_name)
     # Load the q-table.
@@ -126,26 +132,29 @@ def run_agent_on_env(results_path: str, env_name: str, live_prints: bool = False
     timestep = env.reset()
     state: str = str(timestep.observation['board'])
     states_list: List[str] = [state]
+    state_id: int = states_dict.get(state)    
     if live_prints:
-        print(f"Step {step_ctr}:\n{state}")
+        print(f"Step {step_ctr}: Starting in state '{state_id}':\n{np.around(q_table[state_id, :], 2)}\n{state}")
         
     while not timestep.last() and step_ctr < 1000:
-        # Check if the state is already known. Otherwise assign in a free 'state_id'.
-        state_id: int = states_dict.get(state)
         # Get the best action when being in this state - according to the q-table.
         action = get_best_action(q_table, state_id, action_space)
         timestep = env.step(action)
+        step_ctr += 1
         state: str = str(timestep.observation['board'])
+        # Check if the state is already known. Otherwise assign in a free 'state_id'.
+        state_id = states_dict.get(state)
 
         # Save the new state.
         if live_prints:
-            print(f"Step {step_ctr}:\n{state}")
+            print(f"Step {step_ctr}: Taking action '{c.ACTIONS.get(action)}' ('{action}') to go to state '{state_id}':\n{np.around(q_table[state_id, :], 2)}\n{state}")
             time.sleep(1)
         states_list.append(state)
-        step_ctr += 1
 
+    if print_q_table:
+        print(np.around(q_table, 2))
     # Save the list of explores states to file.
-    np.save(f"{results_path}/agent_journey_n{step_ctr}.npy", states_list)
+    np.save(f"{results_path}/{c.fn_agent_journey}{step_ctr}.npy", states_list)
     
 ### DATA PROCESSING FUNCTIONS
 
@@ -258,7 +267,8 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, st
     baseline_str        = f", Baseline: '{baseline}'" if beta is not None else ''
     discount_str        = f", Discount factor: {q_discount}"
     beta_str            = f", Beta: {beta}" if beta is not None else ''
-    sub_title: str = f"<br><sup>{lr_str}{sset_strategy_str}{baseline_str}{discount_str}{beta_str}</sup>"
+    sub_title: str = f"<br><sup>{lr_str}{sset_strategy_str}{baseline_str}{discount_str}{beta_str} \
+        <br>Last performance: {episodic_performances[-1]}, Last reward: {episodic_returns[-1]}</sup>"
     
     # Plot the performance data and store it to image.
     title: str = f"Performances - '{env_name}'\n{sub_title}"
@@ -288,6 +298,7 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, st
         'Learning rate',
         'Strategy',
         'Baseline',
+        'Q-Discount',
         'Beta',
         'Last reward',
         'Last performances',
@@ -300,12 +311,13 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, st
         headder_row[2]: learning_rate,
         headder_row[3]: strategy,        
         headder_row[4]: baseline,
-        headder_row[5]: beta,
+        headder_row[5]: q_discount,
+        headder_row[6]: beta,
         # Results:
-        headder_row[6]: episodic_returns[-1],
-        headder_row[7]: episodic_performances[-1],
+        headder_row[7]: episodic_returns[-1],
+        headder_row[8]: episodic_performances[-1],
         # Relative storage path:
-        headder_row[8]: storage_path
+        headder_row[9]: storage_path
     }
     # Open our existing CSV file in append mode.
     # Create a file object for this file.
@@ -324,9 +336,9 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, st
 
 if __name__ == "__main__":    
     # path0 = '/home/fabrice/Documents/coding/ML/Results/sokocoin0/RRLearning/2023_07_24-17_23_e100_b0-1_blStepwise_SEs'
-    path0 = '/home/fabrice/Documents/coding/ML/Results/sokocoin0/RRLearning/2023_07_24-18_47_e10000_b0-1_blInaction_SEs'
+    path0 = '/home/fabrice/Documents/coding/ML/Results/sokocoin0/RRLearning/2023_07_25-16_26_e1000_lr0-1_SEst_blStep_g0-99_b0-05'
     # path1 = '/home/fabrice/Documents/coding/ML/Results/sokocoin2/QLearning/2023_07_24-17_33_e100_bNone_SEx'
     
-    run_agent_on_env(results_path=path0, env_name="sokocoin0", live_prints=True)
+    run_agent_on_env(results_path=path0, env_name="sokocoin0", live_prints=True, print_q_table=True)
     
     pass

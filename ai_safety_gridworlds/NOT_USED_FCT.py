@@ -1,7 +1,10 @@
 from typing import List, Dict, Set, Tuple
 import helper_fcts as hf
 import re
-import math
+import imageio
+import numpy as np
+
+import constants as c
 
 OLD_KEY_CHAR_GROUPS = [   
     ['A'],
@@ -87,5 +90,20 @@ def demo_keypos_fct():
     for row in state_str_mat:
         print(row)
 
-def my_comb(n, k) -> int:
-    return int(math.factorial(n) / (math.factorial(k) * math.factorial(n-k)))
+def render_agent_journey_to_gif(dir: str) -> str:
+    # Convert the journey environments into images.
+    dir = "/home/fabrice/Documents/coding/ML/Results/sokocoin0/RRLearning/2023_07_24-18_47_e10000_b0-1_blInaction_SEs"
+    file_prefix: str = c.fn_agent_journey
+    states = np.load(dir) # TODO: CONTINUE
+    n = len(states)
+    
+    frames = []
+    # Read in all images from the journey images folder.
+    for t in n:
+        image = imageio.v2.imread(f'./img/img_{t}.png')
+        frames.append(image)
+    
+    imageio.mimsave('./example.gif', 
+                frames, 
+                fps = 5, 
+                loop = 1)

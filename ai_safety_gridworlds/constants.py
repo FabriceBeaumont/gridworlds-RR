@@ -22,6 +22,7 @@ fn_performances_table: str          = "performances_table_seed"
 fn_plot1_performance_jpeg: str      = "plot1_performance.jpeg"
 fn_plot2_results_jpeg: str          = "plot2_results.jpeg"
 fn_plot3_results_smooth_jpeg: str   = "plot3_results_smooth.jpeg"
+fn_agent_journey: str               = "agent_journey_n"
 
 class Strategies(Enum):
     ESTIMATE_STATES: str   = "Estimate"
@@ -38,13 +39,13 @@ class Environments(Enum):
     SOKOCOIN3: str = "sokocoin3"
 
 class PARAMETRS(Enum):
-    ENV_NAME: str           = "Env Name"
-    NR_EPISODES: str        = "Nr Episodes"
-    LEARNING_RATE: str      = "Learning Rate"
-    STATE_SPACE_STRATEGY: str = "States Set Strategy"
-    BASELINE: str           = "Baseline"
-    Q_DISCOUNT: str         = "Q Discount"
-    BETA: str               = "Beta"
+    ENV_NAME: str               = "Env Name"
+    NR_EPISODES: str            = "Nr Episodes"
+    LEARNING_RATE: str          = "Learning Rate"
+    STATE_SPACE_STRATEGY: str   = "States Set Strategy"
+    BASELINE: str               = "Baseline"
+    Q_DISCOUNT: str             = "Q Discount"
+    BETA: str                   = "Beta"
 
 StateSpaceSizeEstimations: Dict[str, int] = {
     Environments.SOKOCOIN0.value: 100,
