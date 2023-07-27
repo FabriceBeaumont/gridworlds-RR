@@ -151,7 +151,7 @@ class StateSpaceBuilder():
             return states_int_dict, int_states_dict, states_actions_dict
 
 # Q-Learning implementation.
-def run_q_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, seed: int = 42, verbose: bool = False):
+def run_q_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, seed: int = 42, verbose: bool = False):
 
     # Extract the parameter settings.
     env_name        = settings.get(PARAMETRS.ENV_NAME)
@@ -180,19 +180,19 @@ def run_q_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, se
 
     # Initialize datastructures for the evaluation.
     # Every 'nr_episodes/loss_frequency' episode, save the last episodic returns and performance, and the accumulated loss.
-    loss_frequency: int = nr_episodes
-    if set_loss_freq is not None:
-        loss_frequency: int = set_loss_freq
+    tde_frequency: int = nr_episodes
+    if set_tde_freq is not None:
+        tde_frequency: int = set_tde_freq
         
     eval_episode_ctr: int = 0
     # Save the actual names of the episodes, where a performance snapshot will be taken.
-    evaluated_episodes: np.array        = np.zeros(loss_frequency)
+    evaluated_episodes: np.array        = np.zeros(tde_frequency)
     # Save the returns of the evaluated episodes.
-    episodic_returns: np.array          = np.zeros(loss_frequency)
+    episodic_returns: np.array          = np.zeros(tde_frequency)
     # Save the performances of the evaluated episodes.
-    episodic_performances: np.array     = np.zeros(loss_frequency)
+    episodic_performances: np.array     = np.zeros(tde_frequency)
     # Save the accumulated losses of the evaluated episodes.
-    losses: np.array                    = np.zeros(loss_frequency)
+    tdes: np.array                    = np.zeros(tde_frequency)
         
     # Initialize the exploration epsilon
     exploration_epsilons: np.array[float] = hf.get_annealed_epsilons(nr_episodes)
@@ -213,7 +213,7 @@ def run_q_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, se
             _last_action: int           = None
             _nr_actions_so_far: int     = 0
             _actions_so_far: List[int]  = []
-            _episode_loss: float        = 0.        
+            _episode_tde: float        = 0.        
             exploration_epsilon: float  = exploration_epsilons[episode]
 
             while True:
@@ -235,18 +235,18 @@ def run_q_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, se
 
                     # We define the loss as the 'squared temporal difference error'. In this case the delta^2.
                     # Accumulate the squared delta for 'loss_frequency' many uniformly-selected episodes.
-                    if not(episode % (nr_episodes//loss_frequency)):
+                    if not(episode % (nr_episodes//tde_frequency)):
                         _step_loss = delta**2
-                        _episode_loss += _step_loss
+                        _episode_tde += _step_loss
                 
                 # Break condition: If this was the last action, update the q-values for the terminal state one last time.            
                 break_condition: bool = timestep.last() or _nr_actions_so_far >= MAX_NR_ACTIONS
                 if break_condition:
                     # Before ending this episode, save the returns and performances.
-                    if not(episode % (nr_episodes//loss_frequency)):
+                    if not(episode % (nr_episodes//tde_frequency)):
                         episodic_returns[eval_episode_ctr]       = env.episode_return
                         episodic_performances[eval_episode_ctr]  = env.get_last_performance()
-                        losses[eval_episode_ctr]                 = _episode_loss
+                        tdes[eval_episode_ctr]                 = _episode_tde
                         evaluated_episodes[eval_episode_ctr]     = episode
                         eval_episode_ctr += 1
                     break
@@ -265,12 +265,12 @@ def run_q_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, se
 
     # Measure the runtime.
     runtime = time.time() - start_time
-    hf.save_results_to_file(settings, q_table, states_set.get_states_dict(), losses, episodic_returns, episodic_performances, evaluated_episodes, seed, method_name=method_name, complete_runtime=runtime, dir_name_prefix=time_tag)
+    hf.save_results_to_file(settings, q_table, states_set.get_states_dict(), tdes, episodic_returns, episodic_performances, evaluated_episodes, seed, method_name=method_name, complete_runtime=runtime, dir_name_prefix=time_tag)
 
     return episodic_returns, episodic_performances
 
 # RR-Learning implementation.
-def run_rr_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, seed: int = 42, verbose: bool = False, save_coverage_table: bool = True):
+def run_rr_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, seed: int = 42, verbose: bool = False, save_coverage_table: bool = True):
     
     def get_the_baseline_state_id(_previous_baseline_id: int, _actions_so_far: List[int] = None) -> int:        
         # For the starting state baseline, nothing has to be computed. It is already set.
@@ -327,20 +327,20 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, s
     c_table: np.array = np.zeros((n, n), dtype=np.float32)
 
     # Initialize datastructures for the evaluation.
-    # Every 'nr_episodes/loss_frequency' episode, save the last episodic returns and performance, and the accumulated loss.
-    loss_frequency: int = nr_episodes
-    if set_loss_freq is not None:
-        loss_frequency: int = set_loss_freq
+    # Every 'nr_episodes/tde_frequency' episode, save the last episodic returns and performance, and the accumulated tde (temporal difference error).
+    tde_frequency: int = nr_episodes
+    if set_tde_freq is not None:
+        tde_frequency: int = set_tde_freq
         
     eval_episode_ctr: int = 0
     # Save the actual names of the episodes, where a performance snapshot will be taken.
-    evaluated_episodes: np.array        = np.zeros(loss_frequency)
+    evaluated_episodes: np.array        = np.zeros(tde_frequency)
     # Save the returns of the evaluated episodes.
-    episodic_returns: np.array          = np.zeros(loss_frequency)
+    episodic_returns: np.array          = np.zeros(tde_frequency)
     # Save the performances of the evaluated episodes.
-    episodic_performances: np.array     = np.zeros(loss_frequency)
-    # Save the accumulated losses of the evaluated episodes.
-    losses: np.array                    = np.zeros(loss_frequency)
+    episodic_performances: np.array     = np.zeros(tde_frequency)
+    # Save the accumulated temporal difference errors of the evaluated episodes.
+    tdes: np.array                    = np.zeros(tde_frequency)
     
     # Initialize the exploration epsilon
     exploration_epsilons: np.array[float] = hf.get_annealed_epsilons(nr_episodes)
@@ -380,7 +380,7 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, s
             _last_action: int           = None
             _actions_so_far_ctr: int    = 0
             _actions_so_far: List[int]  = []
-            _episode_loss: float        = 0.
+            _episode_tde: float        = 0.
             exploration_epsilon: float  = exploration_epsilons[episode]
 
             _baseline_state_id: int     = None
@@ -414,7 +414,8 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, s
                     # We update the coverage functions for all states 's'. Since the coverage value of a state 'j', when starting at state 'i' is denoted
                     # as matrix entry 'C_{i,j}', we compare the coverage values for all states when starting at the old vs. the new state. 
                     # Thus these are the rows of the coverage matrix.
-                    c_delta = q_discount * c_table[state_new_id, :] - c_table[state_old_id, :]
+                    # TODO: WAS DA LOOOOS c_delta = q_discount * c_table[state_new_id, :] - c_table[state_old_id, :]
+                    c_delta = q_discount * c_table[:, state_new_id] - c_table[state_old_id, :]
                     # Add the coverage reward. It is simly 1.0, if the new state equals the last. And zero otherwise. Thus we add it to the right index.
                     c_delta[state_new_id] += 1
                     # Update the c-values. 'V(s_old) = V(s_old) + alpha * [c_discount + V(s_new) - V(s_old)]'.
@@ -459,20 +460,20 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, s
                         print(f"C-Table for SxS with S={_states_id_set}:\n{c_table[list(_states_id_set), list(_states_id_set)]}")
                         print(f"Q-Table for states S={_states_id_set}:\n{q_table[list(_states_id_set), :]}")
                     
-                    # We define the loss as the 'squared temporal difference error'. In this case the delta^2.
+                    # We define the temporal difference error actually as the 'squared temporal difference error'. In this case the delta^2.
                     # Accumulate the squared delta for 'loss_frequency' many uniformly-selected episodes.
-                    if not(episode % (nr_episodes//loss_frequency)):
-                        _step_loss = q_delta**2
-                        _episode_loss += _step_loss            
+                    if not(episode % (nr_episodes//tde_frequency)):
+                        _step_tde = q_delta**2
+                        _episode_tde += _step_tde
                 
                 # Break condition: If this was the last action, update the q-values for the terminal state one last time.            
                 break_condition: bool = timestep.last() or _actions_so_far_ctr >= MAX_NR_ACTIONS
                 if break_condition:
                     # Before ending this episode, save the returns and performances.
-                    if not(episode % (nr_episodes//loss_frequency)):
+                    if not(episode % (nr_episodes//tde_frequency)):
                         episodic_returns[eval_episode_ctr]       = env.episode_return
                         episodic_performances[eval_episode_ctr]  = env.get_last_performance()
-                        losses[eval_episode_ctr]                 = _episode_loss
+                        tdes[eval_episode_ctr]                 = _episode_tde
                         evaluated_episodes[eval_episode_ctr]     = episode
                         eval_episode_ctr += 1
                     break
@@ -496,7 +497,7 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_loss_freq: int = None, s
     runtime = time.time() - start_time
     if not save_coverage_table:
         c_table = None
-    hf.save_results_to_file(settings, q_table, states_set.get_states_dict(), losses, episodic_returns, episodic_performances, evaluated_episodes, seed, method_name=method_name, complete_runtime=runtime, coverage_table=c_table, dir_name_prefix=time_tag)
+    hf.save_results_to_file(settings, q_table, states_set.get_states_dict(), tdes, episodic_returns, episodic_performances, evaluated_episodes, seed, method_name=method_name, complete_runtime=runtime, coverage_table=c_table, dir_name_prefix=time_tag)
 
     return episodic_returns, episodic_performances
 
@@ -577,10 +578,10 @@ def experiment_right_box_movement_girdsearch():
                 run_rr_learning(settings, verbose=False, save_coverage_table=True)
 
 def tiny_runtest_rr():    
-    for bl in [Baselines.STARTING_STATE_BASELINE.value, Baselines.STEPWISE_INACTION_BASELINE.value]:
+    for bl in [Baselines.STARTING_STATE_BASELINE.value]:#, Baselines.STEPWISE_INACTION_BASELINE.value]:
         settings = create_settings_dict(
             env_name=Environments.SOKOCOIN0.value, 
-            nr_episodes=10000, 
+            nr_episodes=3000, 
             learning_rate=.1,
             statespace_strategy=Strategies.ESTIMATE_STATES.value,
             q_discount=1.0,
@@ -600,7 +601,8 @@ def experiment_complete_estimate():
     run_experiments_q_vs_rr(env_names, nr_episodes, learning_rates, discount_factors, betas, baselines, strategy=Strategies.EXPLORE_STATES)
 
 if __name__ == "__main__":
-    experiment_right_box_movement_girdsearch()
+    tiny_runtest_rr()
+    # experiment_right_box_movement_girdsearch()
     # experiment_right_box_movement_girdsearch()
         
     # TODO extras: Render the environements. Maybe even to Gif. > Run agent. TODO: Unused code in 'not_used.py'. Eliminate inaction baseline from experiments.
