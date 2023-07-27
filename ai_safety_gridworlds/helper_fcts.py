@@ -8,6 +8,10 @@ from csv import DictWriter, Sniffer
 from datetime import timedelta, datetime
 import time
 
+import imageio
+from matplotlib import pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
+
 import plotly.express as px
 from helpers import factory
 
@@ -119,13 +123,15 @@ def get_annealed_epsilons(nr_episodes: int) -> np.array:
     exp_strategy_zero: np.array[float]              = np.zeros(nr_episodes - nr_exploration)
     return np.concatenate((exp_strategy_linear_decrease, exp_strategy_zero))
 
-def run_agent_on_env(results_path: str, env_name: str, live_prints: bool = False, print_q_table: bool = False) -> np.array:    
+def run_agent_on_env(results_path: str, env_name: str, q_table: np.array = None, states_dict: Dict[str, int] = None, live_prints: bool = False, print_q_table: bool = False) -> np.array:    
     # Load the environment.    
     env, action_space = load_sokocoin_env(env_name)
     # Load the q-table.
-    q_table: np.array = np.load(f"{results_path}/{c.fn_qtable_npy}", allow_pickle=True)
+    if q_table is None:
+        q_table: np.array = np.load(f"{results_path}/{c.fn_qtable_npy}", allow_pickle=True)
     # Load the states_dict.
-    states_dict: Dict[str, int] = np.load(f"{results_path}/{c.fn_states_dict_npy}", allow_pickle=True).item()
+    if states_dict is None:
+        states_dict: Dict[str, int] = np.load(f"{results_path}/{c.fn_states_dict_npy}", allow_pickle=True).item()
     step_ctr: int = 0
     
     # Run the agent.
@@ -154,14 +160,96 @@ def run_agent_on_env(results_path: str, env_name: str, live_prints: bool = False
     if print_q_table:
         print(np.around(q_table, 2))
     # Save the list of explores states to file.
-    np.save(f"{results_path}/{c.fn_agent_journey}{step_ctr}.npy", states_list)
+    np.save(f"{results_path}/{c.fn_agent_journey}_n{step_ctr}.npy", states_list)
+    return states_list
+
+def render_agent_journey_gif(directory: str, env_name: str = None, states: List[str] = None, info_text: str = '') -> str:
+
+    def parse_str_to_int_mat(states: List[List[str]]) -> List[np.array]:
+        state_matrices: List[np.array] = []
+        for state in states:
+            # Eliminate matrix encoding strings.
+            state_rows: List[str] = state.replace('[','').replace(']','').replace(' ','').split("\n")
+            # Remove the tailing float-dot and split the other values using them.
+            state_matrix: List[List[str]] = [row[:-1].split(".") for row in state_rows]
+            # Convert the strings into integers and save each state as np.array.
+            state_matrix: np.array = np.array([[int(x) for x in row] for row in state_matrix])
+            state_matrices.append(state_matrix)
+
+        return state_matrices
+
+    def plot_states(states: List[np.array]) -> List:
+        frames = []        
+        # Define the colormap for the states.
+        colors = ["black", "silver", "gold", "peru", "green"]
+        cmap1 = LinearSegmentedColormap.from_list("mycmap", colors)
+        v_min: int = min([state.min() for state in states])
+        v_max: int = max([state.max() for state in states])
+
+        # Iterate over all states-matrices and convert them to image.
+        for nr, state in enumerate(states):
+            fig, (ax_gif, ax_info) = plt.subplots(1, 2, figsize=(5, 3))
+            fig.suptitle(f"RR-Learning Agent{env_name if env_name is not None else ''}")
+            fig.tight_layout()
+            ax_gif.matshow(state, cmap=cmap1, vmin=v_min, vmax=v_max)
+            
+            for i in range(state.shape[0]):
+                for j in range(state.shape[1]):
+                    value = state[j,i]
+                    ax_gif.text(i, j, str(value), va='center', ha='center')
+            
+            for frame in [ax_gif.axes, ax_info.axes]:
+                frame.get_xaxis().set_ticks([])
+                frame.get_yaxis().set_ticks([])        
+            ax_gif.set_xlabel(f"State: {nr}/{len(states)}")
+
+            border = 0.05
+            ax_info.text(border, 1-border, info_text, va='top', ha='left')
+            
+            # Save the image.
+            file_path = f"{file_path_prefix}_n{nr}.png"
+            plt.savefig(file_path)
+            frames.append(imageio.v2.imread(file_path))
+            plt.close()
+
+        return frames
     
+    # The real environment renderer uses 'saftey_ui' ('_display') and 'courses'. We can simplify this rendering process, since
+    # no rendering in realtime, depending on user actions are required.
+   
+    # Convert the journey environments into images.    
+    save_path: str          = f"{directory}/{c.fn_agent_journey}_figs"
+    file_path_prefix: str   = f"{save_path}/{c.fn_agent_journey}"
+    if not os.path.exists(save_path): os.mkdir(save_path)
+    
+    # Read all files in the directory. Find the file, which name starts with {c.fn_agent_journey}.    
+    if states is None:
+        agents_journey_file = None
+        for filename in os.listdir(directory):
+            if c.fn_agent_journey in filename and os.path.isfile(os.path.join(directory,filename)):
+                agents_journey_file = filename
+                break
+
+        states = np.load(f"{directory}/{agents_journey_file}")
+    
+    # Convert the string representations of the states into matrices with integer values.
+    state_matrices = parse_str_to_int_mat(states)
+       
+    # Now plot all these states and save the plots in a dir.
+    gif_frames = plot_states(state_matrices)
+    imageio.mimsave(f"{save_path}/{c.fn_agent_journey}.gif", 
+        gif_frames, 
+        duration = 600, 
+        loop = 3
+    )
+
+    return save_path
 ### DATA PROCESSING FUNCTIONS
 
 def _smooth(values, window=100):
   return values.rolling(window,).mean()
 
-def add_smoothed_data(df, window=100, keys: List[str] = ['episode', 'reward', 'performance', 'loss']):
+def add_smoothed_data(df, window=100, keys: List[str] = ['episode', 'reward', 'performance', 'tde']):
   smoothed_data = df[keys]
   keys_smooth_names = dict([(k, f"{k}_smooth") for k in keys])
   smoothed_data = smoothed_data.apply(_smooth, window=window).rename(columns=keys_smooth_names)
@@ -193,7 +281,49 @@ def generate_dir_name(settings: Dict[c.PARAMETRS, str]) -> str:
     beta_str            = f"_b{beta}" if beta is not None else ''
     
     return f"{episodes_str}{lr_str}{sspace_strategy_str}{baseline_str}{discount_str}{beta_str}"
-    
+
+def add_run_to_all_results_csv(settings: Dict[c.PARAMETRS, str], episodic_returns: List[float], episodic_performances: List[float], storage_path: str) -> None:
+    # Write a line in the global experiment log. 
+    # If it does not contain a header yet, write it as well.
+    all_experiments_file_path: str = f"{c.fn_experiments_csv}"    
+    headder_row: str = [
+        'Environment name', 
+        'Nr. episodes',
+        'Learning rate',
+        'Strategy',
+        'Baseline',
+        'Q-Discount',
+        'Beta',
+        'Last reward',
+        'Last performances',
+        'Storage path'
+    ]
+    csv_row: Dict[str, str] = {
+        # Parameter settings:
+        headder_row[0]: settings.get(c.PARAMETRS.ENV_NAME),
+        headder_row[1]: settings.get(c.PARAMETRS.NR_EPISODES),
+        headder_row[2]: settings.get(c.PARAMETRS.LEARNING_RATE),
+        headder_row[3]: settings.get(c.PARAMETRS.STATE_SPACE_STRATEGY),
+        headder_row[4]: settings.get(c.PARAMETRS.BASELINE),
+        headder_row[5]: settings.get(c.PARAMETRS.Q_DISCOUNT),
+        headder_row[6]: settings.get(c.PARAMETRS.BETA),
+        # Results:
+        headder_row[7]: episodic_returns[-1],
+        headder_row[8]: episodic_performances[-1],
+        # Relative storage path:
+        headder_row[9]: storage_path
+    }
+    # Open our existing CSV file in append mode.
+    # Create a file object for this file.
+    existed_already: bool = os.path.exists(all_experiments_file_path)
+    with open(all_experiments_file_path, 'a') as f_object:
+        writer = DictWriter(f_object, fieldnames=headder_row)
+        if not existed_already:
+            writer.writeheader()
+        # Write the data line.
+        writer.writerow(csv_row)
+        f_object.close()
+
 def save_intermediate_qtables_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, episode: int, method_name: str, dir_name_prefix: str = '') -> None:
     # Extract the parameter settings.
     env_name: str = settings.get(c.PARAMETRS.ENV_NAME)
@@ -212,7 +342,7 @@ def save_intermediate_qtables_to_file(settings: Dict[c.PARAMETRS, str], q_table:
     # Save the q-table to file.
     np.save(filenname_qtable_e, q_table)
 
-def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, states_dict: Dict[str, int], losses: np.array, episodic_returns: np.array, episodic_performances: np.array, evaluated_episodes: np.array, seed: int, method_name: str, complete_runtime:float, coverage_table: np.array=None, dir_name_prefix: str = '') -> Tuple[str, str]:
+def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, states_dict: Dict[str, int], tdes: np.array, episodic_returns: np.array, episodic_performances: np.array, evaluated_episodes: np.array, seed: int, method_name: str, complete_runtime:float, coverage_table: np.array=None, dir_name_prefix: str = '', render_gif:bool = True) -> Tuple[str, str]:
     # Extract the parameter settings.
     env_name: str           = settings.get(c.PARAMETRS.ENV_NAME)
     nr_episodes: int        = settings.get(c.PARAMETRS.NR_EPISODES)
@@ -242,6 +372,7 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, st
     filenname_perf_plot: str            = f"{storage_path}/{c.fn_plot1_performance_jpeg}"
     filenname_results_plot: str         = f"{storage_path}/{c.fn_plot2_results_jpeg}"
     filenname_smooth_results_plot: str  = f"{storage_path}/{c.fn_plot3_results_smooth_jpeg}"
+    filenname_perf_plot: str            = f"{storage_path}/{c.fn_plot4_tde_jpeg}"
     
     # Save the q-table to file.
     np.save(filenname_qtable, q_table)    
@@ -256,79 +387,54 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, st
     general_df.to_csv(filenname_general, index=None)
     
     # Save the perfomances to file.
-    d = {'reward': episodic_returns, 'performance': episodic_performances, 'loss': losses, 'episode': evaluated_episodes}
-    results_df = pd.DataFrame(d) 
+    d = {'reward': episodic_returns, 'performance': episodic_performances, 'tde': tdes, 'episode': evaluated_episodes}
+    results_df = pd.DataFrame(d)
+    # Smooth the data, to plot more smooth curves (much less fluctuation).
     results_df_with_smooth = add_smoothed_data(results_df)    
     results_df_with_smooth.to_csv(filenname_perf)
 
     # Prepare a subtitle containing the parameter settings.
-    lr_str              = f"Learning rate: {learning_rate}"
-    sset_strategy_str   = f", State set space strategy '{strategy}'"
-    baseline_str        = f", Baseline: '{baseline}'" if beta is not None else ''
-    discount_str        = f", Discount factor: {q_discount}"
-    beta_str            = f", Beta: {beta}" if beta is not None else ''
-    sub_title: str = f"<br><sup>{lr_str}{sset_strategy_str}{baseline_str}{discount_str}{beta_str} \
-        <br>Last performance: {episodic_performances[-1]}, Last reward: {episodic_returns[-1]}</sup>"
+    lr_str    = f"Learning rate: {learning_rate}"
+    sss_str   = f"State set space strategy '{strategy}'"
+    bl_str    = f"Baseline: '{baseline}'"
+    dic_str   = f"Discount factor: {q_discount}"
+    beta_str  = f"Beta: {beta}"
+    lperf_str = f"Last performance: {episodic_performances[-1]}"
+    lref_str  = f"Last reward: {episodic_returns[-1]}"
+    sub_title: str = f"<br><sup>{lr_str}, {sss_str}{bl_str if baseline is not None else ''}, {dic_str}{beta_str if beta is not None else ''} \
+        <br>{lperf_str}, {lref_str}</sup>"
     
-    # Plot the performance data and store it to image.
+    # Plot the raw performance data and store it to image.
     title: str = f"Performances - '{env_name}'\n{sub_title}"
     fig = px.line(results_df, x='episode', y=['reward', 'performance'], title=title)
     fig.write_image(filenname_perf_plot)
+
+    # Plot the raw squared temporal difference error and store it to image.
+    title: str = f"Squared Temporal Difference Error - '{env_name}'\n{sub_title}"
+    fig = px.line(results_df, x='episode', y=['tde'], title=title)
+    fig.write_image(filenname_perf_plot)
     
     # Standardize the data and plot it.
-    cols_to_standardize = ['reward', 'performance', 'loss', 'reward_smooth', 'performance_smooth', 'loss_smooth']
+    cols_to_standardize = ['reward', 'performance', 'tde', 'reward_smooth', 'performance_smooth', 'tde_smooth']
     results_df_with_smooth[cols_to_standardize] = results_df_with_smooth[cols_to_standardize].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
 
     # Plot the standardized performance data and store it to image.
     title: str = f"Standardized results - '{env_name}'\n{sub_title}"
-    fig = px.line(results_df_with_smooth, x='episode', y=['reward', 'performance', 'loss'], title=title)
+    fig = px.line(results_df_with_smooth, x='episode', y=['reward', 'performance', 'tde'], title=title)
     fig.write_image(filenname_results_plot)
 
     # Plot the standardized smoothed performance data and store it to image.
     title: str = f"Smoothed results - '{env_name}'\n{sub_title}"
-    fig = px.line(results_df_with_smooth, x='episode_smooth', y=['reward_smooth', 'performance_smooth', 'loss_smooth'], title=title)
+    fig = px.line(results_df_with_smooth, x='episode_smooth', y=['reward_smooth', 'performance_smooth', 'tde_smooth'], title=title)
     fig.write_image(filenname_smooth_results_plot)
 
-    # Write a line in the global experiment log. 
-    # If it does not contain a header yet, write it as well.
-    all_experiments_file_path: str = f"{c.fn_experiments_csv}"    
-    headder_row: str = [
-        'Environment name', 
-        'Nr. episodes',
-        'Learning rate',
-        'Strategy',
-        'Baseline',
-        'Q-Discount',
-        'Beta',
-        'Last reward',
-        'Last performances',
-        'Storage path'
-    ]
-    csv_row: Dict[str, str] = {
-        # Parameter settings:
-        headder_row[0]: env_name,
-        headder_row[1]: nr_episodes,
-        headder_row[2]: learning_rate,
-        headder_row[3]: strategy,        
-        headder_row[4]: baseline,
-        headder_row[5]: q_discount,
-        headder_row[6]: beta,
-        # Results:
-        headder_row[7]: episodic_returns[-1],
-        headder_row[8]: episodic_performances[-1],
-        # Relative storage path:
-        headder_row[9]: storage_path
-    }
-    # Open our existing CSV file in append mode.
-    # Create a file object for this file.
-    existed_already: bool = os.path.exists(all_experiments_file_path)
-    with open(all_experiments_file_path, 'a') as f_object:
-        writer = DictWriter(f_object, fieldnames=headder_row)
-        if not existed_already:
-            writer.writeheader()
-        # Write the data line.
-        writer.writerow(csv_row)
-        f_object.close()
+    # Save the settings and last results to a global csv file.
+    add_run_to_all_results_csv(settings, episodic_returns, episodic_performances, storage_path)
+
+    if render_gif:
+        journey_states = run_agent_on_env(results_path=storage_path, env_name=env_name, q_table=q_table, states_dict=states_dict, live_prints=False, print_q_table=False)
+        text = f"{lr_str}\n{sss_str}\n{bl_str}\n{dic_str}\n{beta_str}\n{lperf_str}\n{lref_str}"
+        render_agent_journey_gif(directory=storage_path, env_name=env_name, states=journey_states, info_text=text)
     
     print("Saving to file complete.\n\n")
     return filenname_qtable, filenname_perf
@@ -340,5 +446,6 @@ if __name__ == "__main__":
     # path1 = '/home/fabrice/Documents/coding/ML/Results/sokocoin2/QLearning/2023_07_24-17_33_e100_bNone_SEx'
     
     run_agent_on_env(results_path=path0, env_name="sokocoin0", live_prints=True, print_q_table=True)
+    render_agent_journey_gif(directory=path0)
     
     pass

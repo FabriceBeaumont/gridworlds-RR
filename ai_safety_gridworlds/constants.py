@@ -22,7 +22,8 @@ fn_performances_table: str          = "performances_table_seed"
 fn_plot1_performance_jpeg: str      = "plot1_performance.jpeg"
 fn_plot2_results_jpeg: str          = "plot2_results.jpeg"
 fn_plot3_results_smooth_jpeg: str   = "plot3_results_smooth.jpeg"
-fn_agent_journey: str               = "agent_journey_n"
+fn_plot4_tde_jpeg: str              = "plot4_tde.jpeg"
+fn_agent_journey: str               = "agent_journey"
 
 class Strategies(Enum):
     ESTIMATE_STATES: str   = "Estimate"

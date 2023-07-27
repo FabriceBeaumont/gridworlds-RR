@@ -39,6 +39,7 @@ import copy
 from absl import app
 from absl import flags
 
+# from environments.shared import safety_game, safety_ui
 from environments.shared import safety_game, safety_ui
 
 import numpy as np
