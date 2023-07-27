@@ -6,5 +6,9 @@
 \contentsline {paragraph}{\nonumberline Paper differences}{4}{}%
 \contentsline {chapter}{\numberline {3}Paper summaries}{5}{}%
 \contentsline {subsection}{\numberline {3.0.1}Generalization}{9}{}%
-\contentsline {chapter}{\nonumberline Literaturverzeichnis}{12}{}%
+\contentsline {section}{\numberline {3.1}Formalizations of Implementations}{11}{}%
+\contentsline {subsection}{\numberline {3.1.1}Version 28.07.2023}{11}{}%
+\contentsline {paragraph}{\nonumberline Q-Learning:}{12}{}%
+\contentsline {paragraph}{\nonumberline RR-Learning:}{12}{}%
+\contentsline {chapter}{\nonumberline Literaturverzeichnis}{13}{}%
 \providecommand \tocbasic@end@toc@file {}\tocbasic@end@toc@file 

@@ -240,6 +240,54 @@ Examples:
 	For the stepwise inaction baseline, the definition is extended to rollout states for the current state $s_t$, and the baseline state $s^\prime := s_t^{(t-1)}$ (stepwise inaction baseline). 
 \end{Definition}
 
+
+\section{Formalizations of Implementations}
+
+\subsection{Version 28.07.2023}
+
+Mapping of code names to mathematical variables:
+\begin{multicols}{2}
+\begin{itemize}
+	%\item \texttt{c\_delta} $=\delta_c$
+	\item \texttt{q\_discount} $=\gamma$\\
+	(coverage discount factor)
+	\item \texttt{c\_table} $=C$
+	\item \texttt{learning\_rate} $=\alpha$
+	\item \texttt{d\_rr} $=d_{\text{rr}}$
+	\item \texttt{rr\_reward} $=R^\prime$
+	\item \texttt{timestep.reward} $=R$
+	\item \texttt{beta} $=\beta$
+	\item \texttt{q\_table} $=Q$
+	\item \texttt{max\_action} (with \texttt{state\_id} $s$) \\$a^*=\arg\max\limits_{a\in A} Q[s_{t},a]$	
+	\item \texttt{state\_old} $=s_{t}$
+	\item \texttt{state\_new} $=s_{t+1}$
+	\item \texttt{state\_baseline} $=s^\prime_{t}$
+\end{itemize}	
+\end{multicols}
+
+\paragraph{Q-Learning:}
+\begin{flalign*}	
+	Q_{s_{t}, a_{t}} &= Q_{s_{t}, a_{t}} + \alpha * \underbrace{
+		\big( R + d_q * Q_{s_{t+1}, a^*} -Q_{s_{t}, a_t} \big)
+	}_{\texttt{q\_delta}} &&&\textbf{Q-table update}
+\end{flalign*}
+
+\paragraph{RR-Learning:}
+\begin{flalign*}
+	C_{s_{t},*} &= C_{s_{t},*} + \alpha * \big( \underbrace{ \gamma C_{*,s_{t}} - C_{s_{t+1},*} + \delta_{s_{t}, s_{t+1}} }_{\texttt{c\_delta}}\big) &&&\textbf{Coverage update}\\
+	R^\prime &= R - \beta \underbrace{\frac{1}{|S|} \sum_{s\in S} max\big( C_{s^\prime, s}-C_{s_{t}, s}, 0\big) }_{d_{\text{rr}}} &&&\textbf{Reward adjustment}\\
+	Q_{s_{t}, a_{t}} &= Q_{s_{t}, a_{t}} + \alpha * \underbrace{
+		\big( R^\prime + d_q * Q_{s_{t+1}, a^*} -Q_{s_{t}, a_t} \big)
+	}_{\texttt{q\_delta}} &&&\textbf{Q-table update}
+\end{flalign*}
+
+Let give the coverage update (relative reachability update) another try. In the paper \cite{2018_Krakovna_penaslizing} the reachability of state $s_{t+1}$ from state $s_{t}$ is defined recursively as $C_{s, s} = 1$ and for $s_{t+1}\neq s_{t}$:
+\begin{flalign*} 
+	C_{s_{t}, s_{t+1}} &= \gamma \max_a \sum_{s\in S} p(s| s_{t}, a) C_{s, s_{t+1}} \\
+	&= \gamma \max_a \sum_{s\in S} C_{s, s_{t+1}} &&\text{Deterministic state transitions}\\	
+\end{flalign*}
+Thus now the update depends on the set of states, which are reachable by taking any one single action. Thus for the computation, perform each action in state $s_{t}$ and notice which state is reached by doing so. Take the maximum column sum from each of these states and weight them by the coverage discount factor.
+
 Examples:
 \begin{itemize}
 	\item RR: $w_v = \frac{1}{|\mathcal{S}|}$ and \\

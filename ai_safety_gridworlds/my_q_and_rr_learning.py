@@ -197,8 +197,8 @@ def run_q_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, see
     # Initialize the exploration epsilon
     exploration_epsilons: np.array[float] = hf.get_annealed_epsilons(nr_episodes)
         
-    _last_state_id: int = None
-    _last_action: int   = None
+    state_id_old: int = None
+    last_action: int   = None
 
     # Run training.
     # Record the performance of the agent (run until the time has run out) for 'number_episodes' many episodes.
@@ -207,60 +207,58 @@ def run_q_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, see
             # Get the initial set of observations from the environment.
             timestep = env.reset()
             # Reset the variables for each episode.
-            _current_state: str         = ""
-            _last_state: str            = ""
-            _last_state_id: int         = None
-            _last_action: int           = None
-            _nr_actions_so_far: int     = 0
+            state_new: str              = ""
+            state_old: str              = ""
+            state_id_old: int           = None
+            last_action: int            = None
             _actions_so_far: List[int]  = []
-            _episode_tde: float        = 0.        
+            _episode_tde: float         = 0.        
             exploration_epsilon: float  = exploration_epsilons[episode]
 
             while True:
                 # Perform a step.
-                _current_state: str = str(timestep.observation['board'])
+                state_new: str = str(timestep.observation['board'])
                 # Check if the state is already known. Otherwise assign in a free 'state_id'.
-                state_id = states_set.get_state_id(_current_state)
+                state_id_new = states_set.get_state_id(state_new)
                         
                 # If this is NOT the initial state, update the q-values.
                 # If this was the initial state, we do not have any reference q-values for states/actions before, and thus cannot update anything.
-                if _last_state_id is not None:
+                if state_id_old is not None:
                     reward = timestep.reward
                     # Get the best action according to the q-table (trained so far).
-                    max_action = hf.get_best_action(q_table, state_id, action_space)
+                    max_action = hf.get_best_action(q_table, state_id_new, action_space)
                     # Calculate the q-value delta.
-                    delta = (reward + q_discount * q_table[state_id, max_action] - q_table[_last_state_id, _last_action])
+                    q_delta = (reward + q_discount * q_table[state_id_new, max_action] - q_table[state_id_old, last_action])
                     # Update the q-values.
-                    q_table[_last_state_id, _last_action] += learning_rate * delta
+                    q_table[state_id_old, last_action] += learning_rate * q_delta
 
                     # We define the loss as the 'squared temporal difference error'. In this case the delta^2.
                     # Accumulate the squared delta for 'loss_frequency' many uniformly-selected episodes.
                     if not(episode % (nr_episodes//tde_frequency)):
-                        _step_loss = delta**2
+                        _step_loss = q_delta**2
                         _episode_tde += _step_loss
                 
                 # Break condition: If this was the last action, update the q-values for the terminal state one last time.            
-                break_condition: bool = timestep.last() or _nr_actions_so_far >= MAX_NR_ACTIONS
+                break_condition: bool = timestep.last() or len(_actions_so_far) >= MAX_NR_ACTIONS
                 if break_condition:
                     # Before ending this episode, save the returns and performances.
                     if not(episode % (nr_episodes//tde_frequency)):
-                        episodic_returns[eval_episode_ctr]       = env.episode_return
-                        episodic_performances[eval_episode_ctr]  = env.get_last_performance()
-                        tdes[eval_episode_ctr]                 = _episode_tde
-                        evaluated_episodes[eval_episode_ctr]     = episode
+                        episodic_returns[eval_episode_ctr]      = env.episode_return
+                        episodic_performances[eval_episode_ctr] = env.get_last_performance()
+                        tdes[eval_episode_ctr]                  = _episode_tde
+                        evaluated_episodes[eval_episode_ctr]    = episode
                         eval_episode_ctr += 1
                     break
                 # Otherwise get the next action (according to the greedy exploration policy) and perform the step.
                 else: 
-                    action: int = hf.get_greedy_policy_action(exploration_epsilon, state_id, action_space, q_table)
+                    action: int = hf.get_greedy_policy_action(exploration_epsilon, state_id_new, action_space, q_table)
                     timestep = env.step(action)
-                    _nr_actions_so_far += 1
                     _actions_so_far.append(action)
 
                 # Update the floop-variables.
-                _last_state: str    = _current_state            
-                _last_state_id: int = state_id
-                _last_action: int   = action
+                state_old: str    = state_new            
+                state_id_old: int = state_id_new
+                last_action: int   = action
             bar()
 
     # Measure the runtime.
@@ -340,7 +338,7 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, se
     # Save the performances of the evaluated episodes.
     episodic_performances: np.array     = np.zeros(tde_frequency)
     # Save the accumulated temporal difference errors of the evaluated episodes.
-    tdes: np.array                    = np.zeros(tde_frequency)
+    tdes: np.array                      = np.zeros(tde_frequency)
     
     # Initialize the exploration epsilon
     exploration_epsilons: np.array[float] = hf.get_annealed_epsilons(nr_episodes)
@@ -378,12 +376,11 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, se
             state_new_id: int           = None
             state_old_id: int           = None
             _last_action: int           = None
-            _actions_so_far_ctr: int    = 0
             _actions_so_far: List[int]  = []
             _episode_tde: float        = 0.
             exploration_epsilon: float  = exploration_epsilons[episode]
 
-            _baseline_state_id: int     = None
+            _state_baseline_id: int     = None
 
             _states_set: Set[str] = set()
             _states_id_set: Set[str] = set()
@@ -403,10 +400,10 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, se
                 # Thus by default the starting state basline is set. If another baseline-setting is used, it will be overwritten anyways.
                 # Note that in this case, we do not have any reference q-values for states/actions before, and thus cannot update anything.
                 if state_old_id is None:
-                    _baseline_state_id = state_new_id
+                    _state_baseline_id = state_new_id
                 # If this is NOT the initial state, update the q-values.
                 else:
-                    _baseline_state_id = get_the_baseline_state_id(_baseline_state_id, _actions_so_far)
+                    _state_baseline_id = get_the_baseline_state_id(_state_baseline_id, _actions_so_far)
                     
                     # UPDATE REACHABILITIES. Reachability is a measure of states that can be reached(?).
                     
@@ -423,7 +420,7 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, se
 
                     # CALCULATE RELATIVE REACHABILITY. - first formula page 7 in paper "Peanalizing.."
                     # Compute the absolute reachability of all other states from the current state, compared to from the baseline state.
-                    diff: np.array = c_table[_baseline_state_id, :] - c_table[state_new_id, :]
+                    diff: np.array = c_table[_state_baseline_id, :] - c_table[state_new_id, :]
                     # Apply the maximum function. This ensures, that we do not punish reachabilities higher than the one of the baseline.
                     diff[diff<0] = 0.0
                     # if any(diff):
@@ -467,7 +464,7 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, se
                         _episode_tde += _step_tde
                 
                 # Break condition: If this was the last action, update the q-values for the terminal state one last time.            
-                break_condition: bool = timestep.last() or _actions_so_far_ctr >= MAX_NR_ACTIONS
+                break_condition: bool = timestep.last() or len(_actions_so_far) >= MAX_NR_ACTIONS
                 if break_condition:
                     # Before ending this episode, save the returns and performances.
                     if not(episode % (nr_episodes//tde_frequency)):
@@ -481,13 +478,13 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, se
                 else: 
                     action: int = hf.get_greedy_policy_action(exploration_epsilon, state_new_id, action_space, q_table)
                     timestep = env.step(action)
-                    _actions_so_far_ctr += 1
                     _actions_so_far.append(action)
 
                 # Update the floop-variables.
                 state_old: str    = state_new
                 state_old_id: int = state_new_id
-                _last_action: int   = action
+                # Save the last action, which brought the agent from the previous state to the now called old state.
+                _last_action: int = action
 
             # Save the intermediate q-tables for further research.
             if episode == (nr_episodes // 3) or episode == 2 * (nr_episodes // 3):
