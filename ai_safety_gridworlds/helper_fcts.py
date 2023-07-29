@@ -8,15 +8,13 @@ from csv import DictWriter, Sniffer
 from datetime import timedelta, datetime
 import time
 
-import imageio
-from matplotlib import pyplot as plt
-from matplotlib.colors import LinearSegmentedColormap
 
 import plotly.express as px
 from helpers import factory
 
 # Local imports
 import constants as c
+import visualizations as v
 
 ### COMPUTATIONAL FUNCITONS
 
@@ -102,6 +100,9 @@ def load_sokocoin_env(env_name) -> Tuple:
     
     return env, action_space
 
+def load_states_id_dict(path: str) -> Dict[str, int]:
+    return np.load(path, allow_pickle=True).item()
+
 def get_best_action(q_table: np.array, state_id: int, actions: List[int]) -> int:
     # Get the best action according to the q-values for every possible action in the current state.
     max_indices: np.array = np.argwhere(q_table[state_id, :] == np.amax(q_table[state_id, :])).flatten().tolist()
@@ -131,7 +132,7 @@ def run_agent_on_env(results_path: str, env_name: str, q_table: np.array = None,
         q_table: np.array = np.load(f"{results_path}/{c.fn_qtable_npy}", allow_pickle=True)
     # Load the states_dict.
     if states_dict is None:
-        states_dict: Dict[str, int] = np.load(f"{results_path}/{c.fn_states_dict_npy}", allow_pickle=True).item()
+        states_dict: Dict[str, int] = load_states_id_dict(f"{results_path}/{c.fn_states_dict_npy}")
     step_ctr: int = 0
     
     # Run the agent.
@@ -163,87 +164,6 @@ def run_agent_on_env(results_path: str, env_name: str, q_table: np.array = None,
     np.save(f"{results_path}/{c.fn_agent_journey}_n{step_ctr}.npy", states_list)
     return states_list
 
-def render_agent_journey_gif(directory: str, env_name: str = None, states: List[str] = None, info_text: str = '') -> str:
-
-    def parse_str_to_int_mat(states: List[List[str]]) -> List[np.array]:
-        state_matrices: List[np.array] = []
-        for state in states:
-            # Eliminate matrix encoding strings.
-            state_rows: List[str] = state.replace('[','').replace(']','').replace(' ','').split("\n")
-            # Remove the tailing float-dot and split the other values using them.
-            state_matrix: List[List[str]] = [row[:-1].split(".") for row in state_rows]
-            # Convert the strings into integers and save each state as np.array.
-            state_matrix: np.array = np.array([[int(x) for x in row] for row in state_matrix])
-            state_matrices.append(state_matrix)
-
-        return state_matrices
-
-    def plot_states(states: List[np.array]) -> List:
-        frames = []        
-        # Define the colormap for the states.
-        colors = ["black", "silver", "gold", "peru", "green"]
-        cmap1 = LinearSegmentedColormap.from_list("mycmap", colors)
-        v_min: int = min([state.min() for state in states])
-        v_max: int = max([state.max() for state in states])
-
-        # Iterate over all states-matrices and convert them to image.
-        for nr, state in enumerate(states):
-            fig, (ax_gif, ax_info) = plt.subplots(1, 2, figsize=(5, 3))
-            fig.suptitle(f"RR-Learning Agent{env_name if env_name is not None else ''}")
-            fig.tight_layout()
-            ax_gif.matshow(state, cmap=cmap1, vmin=v_min, vmax=v_max)
-            
-            for i in range(state.shape[0]):
-                for j in range(state.shape[1]):
-                    value = state[i,j]
-                    ax_gif.text(i, j, str(value), va='center', ha='center')
-            
-            for frame in [ax_gif.axes, ax_info.axes]:
-                frame.get_xaxis().set_ticks([])
-                frame.get_yaxis().set_ticks([])        
-            ax_gif.set_xlabel(f"State: {nr}/{len(states)}")
-
-            border = 0.05
-            ax_info.text(border, 1-border, info_text, va='top', ha='left')
-            
-            # Save the image.
-            file_path = f"{file_path_prefix}_n{nr}.png"
-            plt.savefig(file_path)
-            frames.append(imageio.v2.imread(file_path))
-            plt.close()
-
-        return frames
-    
-    # The real environment renderer uses 'saftey_ui' ('_display') and 'courses'. We can simplify this rendering process, since
-    # no rendering in realtime, depending on user actions are required.
-   
-    # Convert the journey environments into images.    
-    save_path: str          = f"{directory}/{c.fn_agent_journey}_figs"
-    file_path_prefix: str   = f"{save_path}/{c.fn_agent_journey}"
-    if not os.path.exists(save_path): os.mkdir(save_path)
-    
-    # Read all files in the directory. Find the file, which name starts with {c.fn_agent_journey}.    
-    if states is None:
-        agents_journey_file = None
-        for filename in os.listdir(directory):
-            if c.fn_agent_journey in filename and os.path.isfile(os.path.join(directory,filename)):
-                agents_journey_file = filename
-                break
-
-        states = np.load(f"{directory}/{agents_journey_file}")
-    
-    # Convert the string representations of the states into matrices with integer values.
-    state_matrices = parse_str_to_int_mat(states)
-       
-    # Now plot all these states and save the plots in a dir.
-    gif_frames = plot_states(state_matrices)
-    imageio.mimsave(f"{save_path}/{c.fn_agent_journey}.gif", 
-        gif_frames, 
-        duration = 600, 
-        loop = 3
-    )
-
-    return save_path
 ### DATA PROCESSING FUNCTIONS
 
 def _smooth(values, window=100):
@@ -402,8 +322,15 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, st
     beta_str  = f"Beta: {beta}"
     lperf_str = f"Last performance: {episodic_performances[-1]}"
     lref_str  = f"Last reward: {episodic_returns[-1]}"
-    sub_title: str = f"<br><sup>{lr_str}, {sss_str}{bl_str if baseline is not None else ''}, {dic_str}{beta_str if beta is not None else ''} \
-        <br>{lperf_str}, {lref_str}</sup>"
+    sub_title: str = f"<br><sup>"
+    sub_title += f"{lr_str}"
+    sub_title += f", {sss_str}"
+    sub_title +={f', {bl_str}' if baseline is not None else ''}
+    sub_title += f", {dic_str}"
+    sub_title +={f', {beta_str}' if beta is not None else ''}
+    sub_title += "<br>"
+    sub_title += f"{lperf_str}, {lref_str}"
+    sub_title += f"</sup>"
     
     # Plot the raw performance data and store it to image.
     title: str = f"Performances - '{env_name}'\n{sub_title}"
@@ -435,7 +362,7 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, st
     if render_gif:
         journey_states = run_agent_on_env(results_path=storage_path, env_name=env_name, q_table=q_table, states_dict=states_dict, live_prints=False, print_q_table=False)
         text = f"{lr_str}\n{sss_str}\n{bl_str}\n{dic_str}\n{beta_str}\n{lperf_str}\n{lref_str}"
-        render_agent_journey_gif(directory=storage_path, env_name=env_name, states=journey_states, info_text=text)
+        v.render_agent_journey_gif(directory=storage_path, env_name=env_name, states=journey_states, info_text=text)
         
     print("complete.\n\n")
     return filenname_qtable, filenname_perf
@@ -445,8 +372,9 @@ if __name__ == "__main__":
     # path0 = '/home/fabrice/Documents/coding/ML/Results/sokocoin0/RRLearning/2023_07_24-17_23_e100_b0-1_blStepwise_SEs'
     path0 = '/home/fabrice/Documents/coding/ML/Results/sokocoin0/RRLearning/2023_07_25-16_26_e1000_lr0-1_SEst_blStep_g0-99_b0-05'
     # path1 = '/home/fabrice/Documents/coding/ML/Results/sokocoin2/QLearning/2023_07_24-17_33_e100_bNone_SEx'
-    
-    run_agent_on_env(results_path=path0, env_name="sokocoin0", live_prints=True, print_q_table=True)
-    render_agent_journey_gif(directory=path0)
+        
+    v.render_state_list_to_pngs(load_states_id_dict("/home/fabrice/Downloads/states_id_dict.npy"), 'sokocoin0', "/home/fabrice/Downloads/figs/states_")
+    # run_agent_on_env(results_path=path0, env_name="sokocoin0", live_prints=True, print_q_table=True)
+    # render_agent_journey_gif(directory=path0)
     
     pass

@@ -15,6 +15,7 @@ import os
 # Local imports
 import helper_fcts as hf
 import constants as c
+import visualizations as v
 from constants import Baselines, Environments, Strategies, PARAMETRS, StateSpaceSizeEstimations, MAX_NR_ACTIONS
 
 class StateSpaceBuilder():
@@ -259,6 +260,7 @@ def run_q_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, see
                 state_old: str    = state_new            
                 state_id_old: int = state_id_new
                 last_action: int   = action
+            # Call the bar-function to indicate the end of the episode (for prettier progress-bar plots in the terminal).
             bar()
 
     # Measure the runtime.
@@ -486,10 +488,11 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, se
                 state_old_id: int = state_new_id
                 # Save the last action, which brought the agent from the previous state to the now called old state.
                 _last_action: int = action
-
+ 
             # Save the intermediate q-tables for further research.
             if episode == (nr_episodes // 3) or episode == 2 * (nr_episodes // 3):
                 hf.save_intermediate_qtables_to_file(settings, q_table, episode, method_name, dir_name_prefix=time_tag)
+            # Call the bar-function to indicate the end of the episode (for prettier progress-bar plots in the terminal).
             bar()
 
     runtime = time.time() - start_time
@@ -580,7 +583,7 @@ def tiny_runtest_rr():
         settings = create_settings_dict(
             env_name=Environments.SOKOCOIN2.value, # Environments.SOKOCOIN0.value, 
             nr_episodes=100, 
-            learning_rate=.1,
+            learning_rate=0.1,
             statespace_strategy=Strategies.ESTIMATE_STATES.value,
             q_discount=1.0,
             baseline=bl, 
@@ -602,3 +605,9 @@ if __name__ == "__main__":
     tiny_runtest_rr()
     # experiment_right_box_movement_girdsearch()
     # TODO extras: Implement usage of a sparse matrix.
+    # TODO: Add the heat map plots to the standard visualization tools. Improve the heatmap plots. Rectangular images.
+    # TODO: Separate a visualizations script - based on data stored in a dir. Clean up the data storage.
+    # TODO: Visualize several runs in comparison. Paramter: List of folders. Output: Combined plot of results, performances.
+    # TODO: Plot development of the qtable. Internet? Maybe inform about qupdates based on last and current state.
+    # TODO: In Agents journez plot the other actions ranked by evaluation.
+    # TODO: Separate the coverage implementation into a coverage class. Can AUP, and several ideas for RR be implemented aat the same time?

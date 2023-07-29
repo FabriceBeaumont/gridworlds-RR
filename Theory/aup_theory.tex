@@ -277,7 +277,7 @@ Mapping of code names to mathematical variables:
 	C_{s_{t},*} &= C_{s_{t},*} + \alpha * \big( \underbrace{ \gamma C_{*,s_{t}} - C_{s_{t+1},*} + \delta_{s_{t}, s_{t+1}} }_{\texttt{c\_delta}}\big) &&&\textbf{Coverage update}\\
 	R^\prime &= R - \beta \underbrace{\frac{1}{|S|} \sum_{s\in S} max\big( C_{s^\prime, s}-C_{s_{t}, s}, 0\big) }_{d_{\text{rr}}} &&&\textbf{Reward adjustment}\\
 	Q_{s_{t}, a_{t}} &= Q_{s_{t}, a_{t}} + \alpha * \underbrace{
-		\big( R^\prime + d_q * Q_{s_{t+1}, a^*} -Q_{s_{t}, a_t} \big)
+		\big( R^\prime + \gamma * Q_{s_{t+1}, a^*} -Q_{s_{t}, a_t} \big)
 	}_{\texttt{q\_delta}} &&&\textbf{Q-table update}
 \end{flalign*}
 
