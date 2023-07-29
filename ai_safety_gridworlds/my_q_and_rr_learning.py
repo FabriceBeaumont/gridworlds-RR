@@ -578,8 +578,8 @@ def experiment_right_box_movement_girdsearch():
 def tiny_runtest_rr():    
     for bl in [Baselines.STARTING_STATE_BASELINE.value]:#, Baselines.STEPWISE_INACTION_BASELINE.value]:
         settings = create_settings_dict(
-            env_name=Environments.SOKOCOIN0.value, 
-            nr_episodes=3000, 
+            env_name=Environments.SOKOCOIN2.value, # Environments.SOKOCOIN0.value, 
+            nr_episodes=100, 
             learning_rate=.1,
             statespace_strategy=Strategies.ESTIMATE_STATES.value,
             q_discount=1.0,
@@ -601,7 +601,4 @@ def experiment_complete_estimate():
 if __name__ == "__main__":
     tiny_runtest_rr()
     # experiment_right_box_movement_girdsearch()
-    # experiment_right_box_movement_girdsearch()
-        
-    # TODO extras: Render the environements. Maybe even to Gif. > Run agent. TODO: Unused code in 'not_used.py'. Eliminate inaction baseline from experiments.
     # TODO extras: Implement usage of a sparse matrix.

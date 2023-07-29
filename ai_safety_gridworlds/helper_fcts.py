@@ -195,7 +195,7 @@ def render_agent_journey_gif(directory: str, env_name: str = None, states: List[
             
             for i in range(state.shape[0]):
                 for j in range(state.shape[1]):
-                    value = state[j,i]
+                    value = state[i,j]
                     ax_gif.text(i, j, str(value), va='center', ha='center')
             
             for frame in [ax_gif.axes, ax_info.axes]:
@@ -344,6 +344,7 @@ def save_intermediate_qtables_to_file(settings: Dict[c.PARAMETRS, str], q_table:
 
 def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, states_dict: Dict[str, int], tdes: np.array, episodic_returns: np.array, episodic_performances: np.array, evaluated_episodes: np.array, seed: int, method_name: str, complete_runtime:float, coverage_table: np.array=None, dir_name_prefix: str = '', render_gif:bool = True) -> Tuple[str, str]:
     # Extract the parameter settings.
+    print("Saving to file...", end="")
     env_name: str           = settings.get(c.PARAMETRS.ENV_NAME)
     nr_episodes: int        = settings.get(c.PARAMETRS.NR_EPISODES)
     # Learning rate (alpha).
@@ -435,8 +436,8 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, st
         journey_states = run_agent_on_env(results_path=storage_path, env_name=env_name, q_table=q_table, states_dict=states_dict, live_prints=False, print_q_table=False)
         text = f"{lr_str}\n{sss_str}\n{bl_str}\n{dic_str}\n{beta_str}\n{lperf_str}\n{lref_str}"
         render_agent_journey_gif(directory=storage_path, env_name=env_name, states=journey_states, info_text=text)
-    
-    print("Saving to file complete.\n\n")
+        
+    print("complete.\n\n")
     return filenname_qtable, filenname_perf
 
 
