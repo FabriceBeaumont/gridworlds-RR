@@ -286,7 +286,8 @@ Let give the coverage update (relative reachability update) another try. In the 
 	C_{s_{t}, s_{t+1}} &= \gamma \max_a \sum_{s\in S} p(s| s_{t}, a) C_{s, s_{t+1}} \\
 	&= \gamma \max_a \sum_{s\in S} C_{s, s_{t+1}} &&\text{Deterministic state transitions}\\	
 \end{flalign*}
-Thus now the update depends on the set of states, which are reachable by taking any one single action. Thus for the computation, perform each action in state $s_{t}$ and notice which state is reached by doing so. Take the maximum column sum from each of these states and weight them by the coverage discount factor.
+Thus now the update depends on the set of states, which can be used to reach the state $s_{t+1}$ by taking any one single action as well. 
+Thus for the computation, perform each action in every state $s$ and save the ones, that lead to a transition to state $s_{t+1}$. Take the maximum row sum from each of these states and weight them by the coverage discount factor.
 
 Examples:
 \begin{itemize}

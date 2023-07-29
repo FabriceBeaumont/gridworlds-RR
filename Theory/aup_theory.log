@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.22 (TeX Live 2022/dev/Debian) (preloaded format=pdflatex 2023.6.1)  28 JUL 2023 01:06
+This is pdfTeX, Version 3.141592653-2.6-1.40.22 (TeX Live 2022/dev/Debian) (preloaded format=pdflatex 2023.6.1)  28 JUL 2023 01:30
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -1736,11 +1736,11 @@ chapter without number
 
 ] (./aup_theory.aux) ) 
 Here is how much of TeX's memory you used:
- 41565 strings out of 480121
- 916711 string characters out of 5892161
+ 41571 strings out of 480121
+ 916759 string characters out of 5892161
  1526755 words of memory out of 5000000
  58520 multiletter control sequences out of 15000+600000
- 543061 words of font info for 286 fonts, out of 8000000 for 9000
+ 543379 words of font info for 290 fonts, out of 8000000 for 9000
  59 hyphenation exceptions out of 8191
  113i,20n,120p,10652b,1290s stack positions out of 5000i,500n,10000p,200000b,80000s
 {/usr/share/texmf/fonts/enc/dvips/lm/lm-ec.enc}{/usr/shar
@@ -1758,7 +1758,7 @@ e/texmf-dist/fonts/type1/urw/palatino/uplb8a.pfb></usr/share/texlive/texmf-dist
 /fonts/type1/urw/palatino/uplr8a.pfb></usr/share/texlive/texmf-dist/fonts/type1
 /urw/palatino/uplr8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/palatin
 o/uplri8a.pfb>
-Output written on aup_theory.pdf (13 pages, 224869 bytes).
+Output written on aup_theory.pdf (13 pages, 225197 bytes).
 PDF statistics:
  163 PDF objects out of 1000 (max. 8388607)
  93 compressed objects within 1 object stream

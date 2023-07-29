@@ -103,8 +103,9 @@ def load_sokocoin_env(env_name) -> Tuple:
     return env, action_space
 
 def get_best_action(q_table: np.array, state_id: int, actions: List[int]) -> int:
+    action_values: np.array = np.ma.masked_invalid(q_table[state_id, :])
     # Get the best action according to the q-values for every possible action in the current state.
-    max_indices: np.array = np.argwhere(q_table[state_id, :] == np.amax(q_table[state_id, :])).flatten().tolist()
+    max_indices: np.array = np.argwhere(action_values == np.amax(action_values)).flatten().tolist()
     # Among all best actions, chose randomly.
     return actions[np.random.choice(max_indices)]
 

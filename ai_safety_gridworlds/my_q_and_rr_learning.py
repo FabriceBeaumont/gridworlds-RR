@@ -17,6 +17,12 @@ import helper_fcts as hf
 import constants as c
 from constants import Baselines, Environments, Strategies, PARAMETRS, StateSpaceSizeEstimations, MAX_NR_ACTIONS
 
+Q_MAX = 1000000
+Q_MIN = -Q_MAX
+
+def q_clip(v: float) -> float:
+    return max(min(v, Q_MAX), Q_MIN)
+
 class StateSpaceBuilder():
     
     def __init__(self, env_name: str, strategy: Strategies = Strategies.ESTIMATE_STATES, env = None, action_space = None):
@@ -268,22 +274,23 @@ def run_q_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, see
     return episodic_returns, episodic_performances
 
 # RR-Learning implementation.
-def run_rr_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, seed: int = 42, verbose: bool = False, save_coverage_table: bool = True):
+def run_rr_learning(settings: Dict[PARAMETRS, str], env_is_static: bool = False, set_tde_freq: int = None, seed: int = 42, verbose: bool = False, save_coverage_table: bool = True):
     
-    def get_the_baseline_state_id(_previous_baseline_id: int, _actions_so_far: List[int] = None) -> int:        
+    def get_the_baseline_state_id(env_name: str, _previous_baseline_id: int, action_space: List[int], actions_so_far: List[int] = None) -> int:        
         # For the starting state baseline, nothing has to be computed. It is already set.
         if baseline == Baselines.STARTING_STATE_BASELINE.value:
             _baseline_state_id = _previous_baseline_id
 
         # For the inaction baseline, get the already simulated state after '_actions_so_far_ctr' many inactions.
         if baseline == Baselines.INACTION_BASELINE.value:
-            _baseline_state_id = inaction_baseline_states[len(_actions_so_far) - 1]
+            _baseline_state_id = inaction_baseline_states[len(actions_so_far) - 1]
 
         # For the stepwise inaction baseline, simulate doing the actions as before, but choosing the NOOP action for the last step.
         if baseline == Baselines.STEPWISE_INACTION_BASELINE.value:
             # Up to the last time step, simulate the environment as before.
             env_simulation, _ = hf.load_sokocoin_env(env_name)
-            for a in _actions_so_far[:-1]:                        
+            env_simulation.reset()
+            for a in actions_so_far[:-1]: 
                 env_simulation.step(a)
             # But for the last time step perform the NOOP action.
             timestep = env_simulation.step(action_space[4])
@@ -319,10 +326,12 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, se
     
     # Store the Q-table.
     n: int = states_set.get_nr_states()
-    q_table: np.array = np.zeros((n, len(action_space)), dtype=float)
+    m: int = len(action_space)
+    q_table: np.array = np.zeros((n, m), dtype=float)
     # Store the coverage values (reachability). 
     # Entrz 'ij' gives the coverage of state 'j' when starting from state 'i'. ({From_states}x{To_states})    
-    c_table: np.array = np.zeros((n, n), dtype=np.float32)
+    c_table: np.array = np.eye(n, dtype=np.float32)
+    origin_state_set: np.array = np.array([set() for _ in range(n * m)]).reshape(n,m)
 
     # Initialize datastructures for the evaluation.
     # Every 'nr_episodes/tde_frequency' episode, save the last episodic returns and performance, and the accumulated tde (temporal difference error).
@@ -359,10 +368,11 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, se
 
         inaction_baseline_states: np.array = np.array(tmp_states_ids_lst, dtype=int)
         print("Completed!")
-    
+
+    # Keep track of all the states, that can be used to reach a state by performing just one action (at some point in time).
     state_old_id: int = None
-    _last_action: int   = None
-    _use_encountered_states_for_avg_only: bool = True # TODO: Feature or not?
+    _last_action: int = None
+    _use_encountered_states_for_avg_only: bool = False # TODO: Feature or not?
     
     # Run training.
     # Record the performance of the agent (run until the time has run out) for 'number_episodes' many episodes.
@@ -371,27 +381,49 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, se
             # Get the initial set of observations from the environment.
             timestep = env.reset()
             # Reset the variables for each episode.
-            state_new: str             = ""
-            state_old: str             = ""
+            state_new: str              = ""
+            state_old: str              = ""
             state_new_id: int           = None
             state_old_id: int           = None
-            _last_action: int           = None
-            _actions_so_far: List[int]  = []
-            _episode_tde: float        = 0.
             exploration_epsilon: float  = exploration_epsilons[episode]
+            _last_action: int           = None
+            actions_so_far: List[int]  = []
+            _episode_tde: float         = 0.
 
-            _state_baseline_id: int     = None
+            state_baseline_id: int      = None
 
-            _states_set: Set[str] = set()
-            _states_id_set: Set[str] = set()
+            seen_state_ids_set: Set[str] = set()
             
             while True:
                 # Perform a step.
                 state_new: str = str(timestep.observation['board'])
-                _states_set.add(state_new)
                 state_new_id = states_set.get_state_id(state_new)
-                _states_id_set.add(state_new_id)
 
+                update_required: bool = True
+                if env_is_static and state_new_id in seen_state_ids_set:
+                    update_required = False
+                
+                if update_required:
+                    # Update the matrix, indicating which state can be used to reach which other state at some time.
+                    for a in action_space:
+                        tmp_env_simulation, _ = hf.load_sokocoin_env(env_name)
+                        tmp_env_simulation.reset()
+                        # Perform all last actions - to replicate the new state in this temporary env.
+                        for last_action in actions_so_far: 
+                            tmp_timestep = tmp_env_simulation.step(last_action)
+
+                        # Now perform the targeted time step to simulate which state can be reached.
+                        tmp_timestep = tmp_env_simulation.step(a)
+                        state = str(tmp_timestep.observation['board'])
+                        state_id = states_set.get_state_id(state)
+                        
+                        origin_state_set[state_id][a].add(state_new_id)
+                        # print(f"State {state_id} can be reached by performing action {c.ACTIONS[a]} in state {state_new_id}") # TODO: Delete
+                        # print(f"State {state_new_id}:\n{state_new}\n\nState {state_id}:\n{state}") 
+                    
+                # Save the state as seen.
+                seen_state_ids_set.add(state_new_id)
+                
                 if verbose:
                     print(f"\n\nFrom OLD state {state_old_id}\n{state_old}")
                     print(f"To NEW state {state_new_id}\n{state_new}")
@@ -400,27 +432,33 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, se
                 # Thus by default the starting state basline is set. If another baseline-setting is used, it will be overwritten anyways.
                 # Note that in this case, we do not have any reference q-values for states/actions before, and thus cannot update anything.
                 if state_old_id is None:
-                    _state_baseline_id = state_new_id
+                    state_baseline_id = state_new_id
                 # If this is NOT the initial state, update the q-values.
                 else:
-                    _state_baseline_id = get_the_baseline_state_id(_state_baseline_id, _actions_so_far)
+                    state_baseline_id = get_the_baseline_state_id(env_name, state_baseline_id, action_space, actions_so_far)
                     
                     # UPDATE REACHABILITIES. Reachability is a measure of states that can be reached(?).
                     
                     # Calculate the coverage delta: '[c_reward + V(s_new) - V(s_old)]'.
                     # We update the coverage functions for all states 's'. Since the coverage value of a state 'j', when starting at state 'i' is denoted
                     # as matrix entry 'C_{i,j}', we compare the coverage values for all states when starting at the old vs. the new state. 
-                    # Thus these are the rows of the coverage matrix.
-                    # TODO: WAS DA LOOOOS c_delta = q_discount * c_table[state_new_id, :] - c_table[state_old_id, :]
-                    c_delta = q_discount * c_table[:, state_new_id] - c_table[state_old_id, :]
-                    # Add the coverage reward. It is simly 1.0, if the new state equals the last. And zero otherwise. Thus we add it to the right index.
-                    c_delta[state_new_id] += 1
-                    # Update the c-values. 'V(s_old) = V(s_old) + alpha * [c_discount + V(s_new) - V(s_old)]'.
-                    c_table[state_old_id, :] += learning_rate * c_delta
+                    # Thus these are the rows of the coverage matrix.                    
+                    if state_old_id != state_new_id:
+                        max_c_sum: float = 0.0
+                        for a in action_space:
+                            origin_state_ids: List[int] = list(origin_state_set[state_new_id][a])
+                            if len(origin_state_ids) == 0:
+                                continue
+                            tmp_c_sum = sum([c_table[s, state_new_id] for s in origin_state_ids])
+                            if tmp_c_sum == np.inf:
+                                print("Wow") #TODO: DEBUG Understand and get rid of infinitely growing values.
+                            if tmp_c_sum > max_c_sum: max_c_sum = tmp_c_sum
+
+                        c_table[state_old_id, state_new_id] = q_clip(q_discount * max_c_sum)
 
                     # CALCULATE RELATIVE REACHABILITY. - first formula page 7 in paper "Peanalizing.."
                     # Compute the absolute reachability of all other states from the current state, compared to from the baseline state.
-                    diff: np.array = c_table[_state_baseline_id, :] - c_table[state_new_id, :]
+                    diff: np.array = c_table[state_baseline_id, :] - c_table[state_new_id, :]
                     # Apply the maximum function. This ensures, that we do not punish reachabilities higher than the one of the baseline.
                     diff[diff<0] = 0.0
                     # if any(diff):
@@ -430,8 +468,8 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, se
                     # then we can use a beta of 'beta * (1+E/|S|)' to expect the same restults as when using 'beta' and the correct size '|S|'.
                     # [Since: 1 / (|S| + E) ==> wrong by factor 1 / (1+E/|S|) ].
                     factor: float = 1.0
-                    if _use_encountered_states_for_avg_only:
-                        factor = len(diff) / len(_states_set)
+                    if _use_encountered_states_for_avg_only and len(seen_state_ids_set) > 0.0:
+                        factor = len(diff) / len(seen_state_ids_set)
                     d_rr: float = np.mean(diff) * factor
                     # if d_rr > 0:
                     #     print("Non-zero rr-penalty")
@@ -443,7 +481,7 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, se
                     # Calculate the q-value delta.
                     q_delta = (rr_reward + q_discount * q_table[state_new_id, max_action] - q_table[state_old_id, _last_action])
                     # Update the q-values.
-                    q_table[state_old_id, _last_action] += learning_rate * q_delta
+                    q_table[state_old_id, _last_action] = q_clip(q_table[state_old_id, _last_action] + learning_rate * q_delta)
 
                     if verbose:
                         print("Value functions")
@@ -454,8 +492,8 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, se
                         print("Q-Table values:")
                         print(f"Q(s_OLD({state_old_id}), {_last_action}={c.ACTIONS.get(_last_action)}:\t{np.around(q_table[state_old_id, _last_action], 2)}")
                         print(f"Q(s_NEW({state_new_id}), {max_action}={c.ACTIONS.get(max_action)} (best):\t{np.around(q_table[state_new_id, max_action], 2)}")
-                        print(f"C-Table for SxS with S={_states_id_set}:\n{c_table[list(_states_id_set), list(_states_id_set)]}")
-                        print(f"Q-Table for states S={_states_id_set}:\n{q_table[list(_states_id_set), :]}")
+                        print(f"C-Table for SxS with S={seen_state_ids_set}:\n{c_table[list(seen_state_ids_set), list(seen_state_ids_set)]}")
+                        print(f"Q-Table for states S={seen_state_ids_set}:\n{q_table[list(seen_state_ids_set), :]}")
                     
                     # We define the temporal difference error actually as the 'squared temporal difference error'. In this case the delta^2.
                     # Accumulate the squared delta for 'loss_frequency' many uniformly-selected episodes.
@@ -464,7 +502,7 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, se
                         _episode_tde += _step_tde
                 
                 # Break condition: If this was the last action, update the q-values for the terminal state one last time.            
-                break_condition: bool = timestep.last() or len(_actions_so_far) >= MAX_NR_ACTIONS
+                break_condition: bool = timestep.last() or len(actions_so_far) >= MAX_NR_ACTIONS
                 if break_condition:
                     # Before ending this episode, save the returns and performances.
                     if not(episode % (nr_episodes//tde_frequency)):
@@ -478,7 +516,7 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, se
                 else: 
                     action: int = hf.get_greedy_policy_action(exploration_epsilon, state_new_id, action_space, q_table)
                     timestep = env.step(action)
-                    _actions_so_far.append(action)
+                    actions_so_far.append(action)
 
                 # Update the floop-variables.
                 state_old: str    = state_new
@@ -543,7 +581,7 @@ def run_experiments_q_vs_rr(env_names: List[Baselines], nr_episodes: int, learni
                     for bl in baselines:
                         print(f"Experiment {ctr}/{nr_experiments} - RRLearning: {n.value}, e{nr_episodes}, lr{lr}, discount{d}, StateSetSizeStrategy:{strategy.value}")
                         settings = create_settings_dict(env_name=n.value, nr_episodes=nr_episodes, learning_rate=lr, statespace_strategy=strategy.value, q_discount=d, baseline=bl.value, beta=beta)
-                        run_rr_learning(settings, save_coverage_table=save_coverage_table)
+                        run_rr_learning(settings, env_is_static=True, save_coverage_table=save_coverage_table)
                         ctr += 1
 
 def demo():
@@ -561,8 +599,8 @@ def demo():
 
 def experiment_right_box_movement_girdsearch():    
     for lr in [0.5]:      # 0.1, 0.5, 1.0
-        for discount in [0.99, 1.0]:
-            for beta in [0.05, 20]:
+        for discount in [0.99]: #, 1.0]:
+            for beta in [0.05]:#, 20]:
                 settings = create_settings_dict(
                     env_name=Environments.SOKOCOIN0.value, 
                     nr_episodes=1000, 
@@ -572,7 +610,7 @@ def experiment_right_box_movement_girdsearch():
                     baseline=Baselines.STARTING_STATE_BASELINE.value, 
                     beta=beta
                 )
-                run_rr_learning(settings, verbose=False, save_coverage_table=True)
+                run_rr_learning(settings, env_is_static=True, verbose=False, save_coverage_table=True)
 
 def tiny_runtest_rr():    
     for bl in [Baselines.STARTING_STATE_BASELINE.value]:#, Baselines.STEPWISE_INACTION_BASELINE.value]:
@@ -585,7 +623,7 @@ def tiny_runtest_rr():
             baseline=bl, 
             beta=.05
         )
-        run_rr_learning(settings, save_coverage_table=True)
+        run_rr_learning(settings, env_is_static=True, save_coverage_table=True)
 
 def experiment_complete_estimate():
     env_names: Environments         = [Environments.SOKOCOIN0, Environments.SOKOCOIN2]
@@ -598,7 +636,7 @@ def experiment_complete_estimate():
     run_experiments_q_vs_rr(env_names, nr_episodes, learning_rates, discount_factors, betas, baselines, strategy=Strategies.EXPLORE_STATES)
 
 if __name__ == "__main__":
-    tiny_runtest_rr()
+    experiment_right_box_movement_girdsearch()
     # experiment_right_box_movement_girdsearch()
     # experiment_right_box_movement_girdsearch()
         
