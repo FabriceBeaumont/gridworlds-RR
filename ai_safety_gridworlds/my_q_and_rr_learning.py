@@ -283,6 +283,7 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, se
         if baseline == Baselines.STEPWISE_INACTION_BASELINE.value:
             # Up to the last time step, simulate the environment as before.
             env_simulation, _ = hf.load_sokocoin_env(env_name)
+            env_simulation.reset()
             for a in _actions_so_far[:-1]:                        
                 env_simulation.step(a)
             # But for the last time step perform the NOOP action.
