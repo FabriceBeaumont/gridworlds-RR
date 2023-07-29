@@ -207,6 +207,7 @@ def add_run_to_all_results_csv(settings: Dict[c.PARAMETRS, str], episodic_return
     # If it does not contain a header yet, write it as well.
     all_experiments_file_path: str = f"{c.fn_experiments_csv}"    
     headder_row: str = [
+        'Method name',
         'Environment name', 
         'Nr. episodes',
         'Learning rate',
@@ -219,19 +220,20 @@ def add_run_to_all_results_csv(settings: Dict[c.PARAMETRS, str], episodic_return
         'Storage path'
     ]
     csv_row: Dict[str, str] = {
+        headder_row[0]: settings.get(c.PARAMETRS.METHOD_NAME),
         # Parameter settings:
-        headder_row[0]: settings.get(c.PARAMETRS.ENV_NAME),
-        headder_row[1]: settings.get(c.PARAMETRS.NR_EPISODES),
-        headder_row[2]: settings.get(c.PARAMETRS.LEARNING_RATE),
-        headder_row[3]: settings.get(c.PARAMETRS.STATE_SPACE_STRATEGY),
-        headder_row[4]: settings.get(c.PARAMETRS.BASELINE),
-        headder_row[5]: settings.get(c.PARAMETRS.Q_DISCOUNT),
-        headder_row[6]: settings.get(c.PARAMETRS.BETA),
+        headder_row[1]: settings.get(c.PARAMETRS.ENV_NAME),
+        headder_row[2]: settings.get(c.PARAMETRS.NR_EPISODES),
+        headder_row[3]: settings.get(c.PARAMETRS.LEARNING_RATE),
+        headder_row[4]: settings.get(c.PARAMETRS.STATE_SPACE_STRATEGY),
+        headder_row[5]: settings.get(c.PARAMETRS.BASELINE),
+        headder_row[6]: settings.get(c.PARAMETRS.Q_DISCOUNT),
+        headder_row[7]: settings.get(c.PARAMETRS.BETA),
         # Results:
-        headder_row[7]: episodic_returns[-1],
-        headder_row[8]: episodic_performances[-1],
+        headder_row[8]: episodic_returns[-1],
+        headder_row[9]: episodic_performances[-1],
         # Relative storage path:
-        headder_row[9]: storage_path
+        headder_row[10]: storage_path
     }
     # Open our existing CSV file in append mode.
     # Create a file object for this file.
@@ -244,9 +246,10 @@ def add_run_to_all_results_csv(settings: Dict[c.PARAMETRS, str], episodic_return
         writer.writerow(csv_row)
         f_object.close()
 
-def save_intermediate_qtables_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, episode: int, method_name: str, dir_name_prefix: str = '') -> None:
+def save_intermediate_qtables_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, episode: int, dir_name_prefix: str = '') -> None:
     # Extract the parameter settings.
     env_name: str = settings.get(c.PARAMETRS.ENV_NAME)
+    method_name: str = settings.get(c.PARAMETRS.METHOD_NAME)
     dir_name: str = f"{dir_name_prefix}_{generate_dir_name(settings).replace('.', '-')}"
     env_path: str = f"{c.RESULTS_DIR}/{env_name}/{method_name}/{dir_name}"
         
@@ -262,9 +265,10 @@ def save_intermediate_qtables_to_file(settings: Dict[c.PARAMETRS, str], q_table:
     # Save the q-table to file.
     np.save(filenname_qtable_e, q_table)
 
-def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, states_dict: Dict[str, int], tdes: np.array, episodic_returns: np.array, episodic_performances: np.array, evaluated_episodes: np.array, seed: int, method_name: str, complete_runtime:float, coverage_table: np.array=None, dir_name_prefix: str = '', render_gif:bool = True) -> Tuple[str, str]:
+def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, states_dict: Dict[str, int], tdes: np.array, episodic_returns: np.array, episodic_performances: np.array, evaluated_episodes: np.array, seed: int, complete_runtime:float, coverage_table: np.array=None, dir_name_prefix: str = '', render_gif:bool = True) -> Tuple[str, str]:
     # Extract the parameter settings.
     print("Saving to file...", end="")
+    method_name: str        = settings.get(c.PARAMETRS.METHOD_NAME)
     env_name: str           = settings.get(c.PARAMETRS.ENV_NAME)
     nr_episodes: int        = settings.get(c.PARAMETRS.NR_EPISODES)
     # Learning rate (alpha).

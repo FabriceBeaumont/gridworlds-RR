@@ -165,6 +165,7 @@ def run_q_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, see
         
     # Initialize the agent:
     method_name: str = "QLearning"
+    settings[PARAMETRS.METHOD_NAME] = method_name
     # Compute a time tag to define the directory where results are stored.
     time_tag: str = datetime.now().strftime("%Y_%m_%d-%H_%M")
     
@@ -265,7 +266,7 @@ def run_q_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, see
 
     # Measure the runtime.
     runtime = time.time() - start_time
-    hf.save_results_to_file(settings, q_table, states_set.get_states_dict(), tdes, episodic_returns, episodic_performances, evaluated_episodes, seed, method_name=method_name, complete_runtime=runtime, dir_name_prefix=time_tag)
+    hf.save_results_to_file(settings, q_table, states_set.get_states_dict(), tdes, episodic_returns, episodic_performances, evaluated_episodes, seed, complete_runtime=runtime, dir_name_prefix=time_tag)
 
     return episodic_returns, episodic_performances
 
@@ -297,6 +298,7 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, se
     
     # Initialize the agent:
     method_name: str = "RRLearning"
+    settings[PARAMETRS.METHOD_NAME] = method_name
     # Compute a time tag to define the directory where results are stored.
     time_tag: str = datetime.now().strftime("%Y_%m_%d-%H_%M")
 
@@ -491,14 +493,14 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, se
  
             # Save the intermediate q-tables for further research.
             if episode == (nr_episodes // 3) or episode == 2 * (nr_episodes // 3):
-                hf.save_intermediate_qtables_to_file(settings, q_table, episode, method_name, dir_name_prefix=time_tag)
+                hf.save_intermediate_qtables_to_file(settings, q_table, episode, dir_name_prefix=time_tag)
             # Call the bar-function to indicate the end of the episode (for prettier progress-bar plots in the terminal).
             bar()
 
     runtime = time.time() - start_time
     if not save_coverage_table:
         c_table = None
-    hf.save_results_to_file(settings, q_table, states_set.get_states_dict(), tdes, episodic_returns, episodic_performances, evaluated_episodes, seed, method_name=method_name, complete_runtime=runtime, coverage_table=c_table, dir_name_prefix=time_tag)
+    hf.save_results_to_file(settings, q_table, states_set.get_states_dict(), tdes, episodic_returns, episodic_performances, evaluated_episodes, seed, complete_runtime=runtime, coverage_table=c_table, dir_name_prefix=time_tag)
 
     return episodic_returns, episodic_performances
 

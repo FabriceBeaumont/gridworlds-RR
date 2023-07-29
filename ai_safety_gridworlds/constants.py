@@ -40,6 +40,7 @@ class Environments(Enum):
     SOKOCOIN3: str = "sokocoin3"
 
 class PARAMETRS(Enum):
+    METHOD_NAME: str            = "Method Name"
     ENV_NAME: str               = "Env Name"
     NR_EPISODES: str            = "Nr Episodes"
     LEARNING_RATE: str          = "Learning Rate"
