@@ -42,3 +42,5 @@ sokocoin0,1000,0.5,Estimate,Starting,1.0,0.05,0.0,0.0,../../Results/sokocoin0/RR
 sokocoin0,1000,0.5,Estimate,Starting,1.0,20,0.0,0.0,../../Results/sokocoin0/RRLearning/2023_07_25-17_54_e1000_lr0-5_SEst_blStar_g1-0_b20
 sokocoin0,3000,0.1,Estimate,Starting,1.0,0.05,0.0,0.0,../../Results/sokocoin0/RRLearning/2023_07_27-03_42_e3000_lr0-1_SEst_blStar_g1-0_b0-05
 sokocoin2,100,0.1,Estimate,Starting,1.0,0.05,13.0,3.0,../../Results/sokocoin2/RRLearning/2023_07_29-19_22_e100_lr0-1_SEst_blStar_g1-0_b0-05
+RRLearning,sokocoin2,5000,0.2,Explore,Starting,0.99,0.05,88.0,78.0,../../Results/sokocoin2/RRLearning/2023_07_30-01_23_e5000_lr0-2_SExp_blStar_g0-99_b0-05
+RRLearning,sokocoin2,5000,0.2,Explore,Starting,0.99,0.1,88.0,78.0,../../Results/sokocoin2/RRLearning/2023_07_30-01_44_e5000_lr0-2_SExp_blStar_g0-99_b0-1

@@ -48,6 +48,25 @@ GAME_ART = [['######',  # Level 0.
 # Sokocoin2 = Counter({'#': 38, ' ': 29, 'C': 2, '1': 1, 'A': 1, '2': 1})
 # Sokocoin3 = Counter({'#': 47, ' ': 46, 'C': 3, '1': 1, 'A': 1, '3': 1, '2': 1})
 
+# PERFORMANCE CRITERIA:
+# movement_reward', -1, 'Movement reward.'
+# coin_reward', 50, 'Reward for collecting a coin.'
+# goal_reward', 50, 'Reward for reaching the goal.'
+# wall_reward', -5
+# Hidden reward for putting a box next to a wall.'
+# corner_reward', -10
+# Hidden reward for putting a box in a corner.'
+
+# Sokocoin2 Solutions:
+# 1.DIRECT WAY:
+# 100 -12 Steps -5 Box1 -5 Box2 = 78 performance
+
+# 2.BOTH BOXES AT WALL - Box1 at reversible position:
+# 100 -14 Steps -5 Box2 = 81 performance
+
+# 3.BOTH BOXES AT FREE - Box1 at reversible position:
+# 100 -18 Steps = 82 performance
+
 
 def my_comb(n, k) -> int:
     return int(math.factorial(n) / (math.factorial(k) * math.factorial(n-k)))
@@ -297,7 +316,7 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, st
     filenname_perf_plot: str            = f"{storage_path}/{c.fn_plot1_performance_jpeg}"
     filenname_results_plot: str         = f"{storage_path}/{c.fn_plot2_results_jpeg}"
     filenname_smooth_results_plot: str  = f"{storage_path}/{c.fn_plot3_results_smooth_jpeg}"
-    filenname_perf_plot: str            = f"{storage_path}/{c.fn_plot4_tde_jpeg}"
+    filenname_tde_plot: str             = f"{storage_path}/{c.fn_plot4_tde_jpeg}"
     
     # Save the q-table to file.
     np.save(filenname_qtable, q_table)    
@@ -329,9 +348,9 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, st
     sub_title: str = f"<br><sup>"
     sub_title += f"{lr_str}"
     sub_title += f", {sss_str}"
-    sub_title +={f', {bl_str}' if baseline is not None else ''}
+    sub_title +=f', {bl_str}' if baseline is not None else ''
     sub_title += f", {dic_str}"
-    sub_title +={f', {beta_str}' if beta is not None else ''}
+    sub_title +=f', {beta_str}' if beta is not None else ''
     sub_title += "<br>"
     sub_title += f"{lperf_str}, {lref_str}"
     sub_title += f"</sup>"
@@ -344,7 +363,7 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, st
     # Plot the raw squared temporal difference error and store it to image.
     title: str = f"Squared Temporal Difference Error - '{env_name}'\n{sub_title}"
     fig = px.line(results_df, x='episode', y=['tde'], title=title)
-    fig.write_image(filenname_perf_plot)
+    fig.write_image(filenname_tde_plot)
     
     # Standardize the data and plot it.
     cols_to_standardize = ['reward', 'performance', 'tde', 'reward_smooth', 'performance_smooth', 'tde_smooth']
@@ -377,8 +396,9 @@ if __name__ == "__main__":
     path0 = '/home/fabrice/Documents/coding/ML/Results/sokocoin0/RRLearning/2023_07_25-16_26_e1000_lr0-1_SEst_blStep_g0-99_b0-05'
     # path1 = '/home/fabrice/Documents/coding/ML/Results/sokocoin2/QLearning/2023_07_24-17_33_e100_bNone_SEx'
         
-    v.render_state_list_to_pngs(load_states_id_dict("/home/fabrice/Downloads/states_id_dict.npy"), 'sokocoin0', "/home/fabrice/Downloads/figs/states_")
-    # run_agent_on_env(results_path=path0, env_name="sokocoin0", live_prints=True, print_q_table=True)
+    # v.render_state_list_to_pngs(load_states_id_dict("/home/fabrice/Downloads/states_id_dict.npy"), 'sokocoin0', "/home/fabrice/Downloads/figs/states_")
+    journey_states = run_agent_on_env(results_path="/home/fabrice/Downloads/", env_name="sokocoin2", live_prints=False, print_q_table=False)
+    v.render_agent_journey_gif(directory="/home/fabrice/Downloads/figs", env_name="sokocoin2", states=journey_states, info_text='')
     # render_agent_journey_gif(directory=path0)
     
     pass

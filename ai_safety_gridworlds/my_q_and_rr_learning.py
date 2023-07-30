@@ -580,7 +580,7 @@ def experiment_right_box_movement_girdsearch():
                 )
                 run_rr_learning(settings, verbose=False, save_coverage_table=True)
 
-def tiny_runtest_rr():    
+def q_beta_gridsearch():    
     for bl in [Baselines.STARTING_STATE_BASELINE.value]:#, Baselines.STEPWISE_INACTION_BASELINE.value]:
         settings = create_settings_dict(
             env_name=Environments.SOKOCOIN2.value, # Environments.SOKOCOIN0.value, 
@@ -603,8 +603,22 @@ def experiment_complete_estimate():
         
     run_experiments_q_vs_rr(env_names, nr_episodes, learning_rates, discount_factors, betas, baselines, strategy=Strategies.EXPLORE_STATES)
 
+def q_beta_gridsearch():    
+    for bl in [Baselines.STARTING_STATE_BASELINE.value, Baselines.STEPWISE_INACTION_BASELINE.value]:
+        for beta in [0.05, 0.1, 0.5, 3, 5]:
+            settings = create_settings_dict(
+                env_name=Environments.SOKOCOIN2.value, # Environments.SOKOCOIN0.value,
+                nr_episodes=5000,
+                learning_rate=0.2,
+                statespace_strategy=Strategies.EXPLORE_STATES.value,
+                q_discount=0.99,
+                baseline=bl,
+                beta=beta
+            )
+            run_rr_learning(settings, save_coverage_table=True)
+
 if __name__ == "__main__":
-    tiny_runtest_rr()
+    q_beta_gridsearch()
     # experiment_right_box_movement_girdsearch()
     # TODO extras: Implement usage of a sparse matrix.
     # TODO: Add the heat map plots to the standard visualization tools. Improve the heatmap plots. Rectangular images.
@@ -613,3 +627,5 @@ if __name__ == "__main__":
     # TODO: Plot development of the qtable. Internet? Maybe inform about qupdates based on last and current state.
     # TODO: In Agents journez plot the other actions ranked by evaluation.
     # TODO: Separate the coverage implementation into a coverage class. Can AUP, and several ideas for RR be implemented aat the same time?
+
+    # TODO: GIF print Reward, Performance during animation.
