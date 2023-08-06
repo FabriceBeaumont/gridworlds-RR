@@ -5,7 +5,9 @@ from enum import Enum
 
 # Maximum number of actions that can be performed by the agend during the states exploration in the preprocessing step.
 MAX_NR_ACTIONS: int = 100
-RESULTS_DIR: str    = "../../Results"    
+RESULTS_DIR: str    = "../../GridworldResults"
+
+dir_evaluation: str = "Evaluations"
 
 # Definition of a couple of filenames for standardized file writing and reading.
 fn_states_npy: str      = "states.npy"
@@ -17,13 +19,18 @@ fn_ctable_npy: str      = "ctable.npy"
 fn_states_dict_npy: str = "states_id_dict.npy"
 fn_experiments_csv: str = "AllExperiments.csv"
 
-fn_general_txt: str                 = "general.txt"
-fn_performances_table: str          = "performances_table_seed"
+fn_general_csv: str                 = "general.csv"
+fn_performances_csv: str            = "performances_table.csv"
 fn_plot1_performance_jpeg: str      = "plot1_performance.jpeg"
 fn_plot2_results_jpeg: str          = "plot2_results.jpeg"
 fn_plot3_results_smooth_jpeg: str   = "plot3_results_smooth.jpeg"
 fn_plot4_tde_jpeg: str              = "plot4_tde.jpeg"
 fn_agent_journey: str               = "agent_journey"
+
+results_col_rewards: str        = 'Rewards'
+results_col_performances: str   = 'Performances'
+results_col_tdes: str           = 'Tdes'
+results_col_episodes: str       = 'Episodes' 
 
 class Strategies(Enum):
     ESTIMATE_STATES: str   = "Estimate"
@@ -46,8 +53,10 @@ class PARAMETRS(Enum):
     LEARNING_RATE: str          = "Learning Rate"
     STATE_SPACE_STRATEGY: str   = "States Set Strategy"
     BASELINE: str               = "Baseline"
-    Q_DISCOUNT: str             = "Q Discount"
+    Q_DISCOUNT: str             = "Discount Factor"
     BETA: str                   = "Beta"
+    MAX_NR_STEPS: str           = "Max. Nr. of Steps"
+
 
 StateSpaceSizeEstimations: Dict[str, int] = {
     Environments.SOKOCOIN0.value: 100,

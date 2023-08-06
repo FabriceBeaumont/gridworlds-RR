@@ -14,7 +14,7 @@ from helpers import factory
 
 # Local imports
 import constants as c
-import visualizations as v
+import x2_evaluation as v
 
 ### COMPUTATIONAL FUNCITONS
 
@@ -158,6 +158,9 @@ def run_agent_on_env(results_path: str, env_name: str, q_table: np.array = None,
     timestep = env.reset()
     state: str = str(timestep.observation['board'])
     states_list: List[str] = [state]
+    returns: List[float] = [0.0]
+    performances: List[float] = [0.0]
+    
     state_id: int = states_dict.get(state)    
     if live_prints:
         print(f"Step {step_ctr}: Starting in state '{state_id}':\n{np.around(q_table[state_id, :], 2)}\n{state}")
@@ -166,6 +169,8 @@ def run_agent_on_env(results_path: str, env_name: str, q_table: np.array = None,
         # Get the best action when being in this state - according to the q-table.
         action = get_best_action(q_table, state_id, action_space)
         timestep = env.step(action)
+        returns.append(env.episode_return)
+        performances.append(env._get_hidden_reward())# TODO env.get_last_performance())
         step_ctr += 1
         state: str = str(timestep.observation['board'])
         # Check if the state is already known. Otherwise assign in a free 'state_id'.
@@ -181,14 +186,14 @@ def run_agent_on_env(results_path: str, env_name: str, q_table: np.array = None,
         print(np.around(q_table, 2))
     # Save the list of explores states to file.
     np.save(f"{results_path}/{c.fn_agent_journey}_n{step_ctr}.npy", states_list)
-    return states_list
+    return states_list, returns, performances
 
 ### DATA PROCESSING FUNCTIONS
 
 def _smooth(values, window=100):
   return values.rolling(window,).mean()
 
-def add_smoothed_data(df, window=100, keys: List[str] = ['episode', 'reward', 'performance', 'tde']):
+def add_smoothed_data(df, window=100, keys: List[str] = [c.results_col_episodes, c.results_col_rewards, c.results_col_performances, c.results_col_tdes]):
   smoothed_data = df[keys]
   keys_smooth_names = dict([(k, f"{k}_smooth") for k in keys])
   smoothed_data = smoothed_data.apply(_smooth, window=window).rename(columns=keys_smooth_names)
@@ -284,19 +289,18 @@ def save_intermediate_qtables_to_file(settings: Dict[c.PARAMETRS, str], q_table:
     # Save the q-table to file.
     np.save(filenname_qtable_e, q_table)
 
-def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, states_dict: Dict[str, int], tdes: np.array, episodic_returns: np.array, episodic_performances: np.array, evaluated_episodes: np.array, seed: int, complete_runtime:float, coverage_table: np.array=None, dir_name_prefix: str = '', render_gif:bool = True) -> Tuple[str, str]:
+def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, states_dict: Dict[str, int], tdes: np.array, episodic_returns: np.array, episodic_performances: np.array, evaluated_episodes: np.array, additional_data_dict: Dict[str, str], coverage_table: np.array=None, dir_name_prefix: str = '') -> Tuple[str, str]:
     # Extract the parameter settings.
     print("Saving to file...", end="")
-    method_name: str        = settings.get(c.PARAMETRS.METHOD_NAME)
-    env_name: str           = settings.get(c.PARAMETRS.ENV_NAME)
-    nr_episodes: int        = settings.get(c.PARAMETRS.NR_EPISODES)
-    # Learning rate (alpha).
-    learning_rate: float    = settings.get(c.PARAMETRS.LEARNING_RATE)
-    strategy: str           = settings.get(c.PARAMETRS.STATE_SPACE_STRATEGY)
-    baseline: str           = settings.get(c.PARAMETRS.BASELINE)
-    q_discount: float       = settings.get(c.PARAMETRS.Q_DISCOUNT)
-    beta: float             = settings.get(c.PARAMETRS.BETA)
+    method_name: str = settings.get(c.PARAMETRS.METHOD_NAME)
+    env_name: str = settings.get(c.PARAMETRS.ENV_NAME)    
     
+    csv_data_dict: Dict[str, str] = dict()
+    for param_key in settings.keys():
+        csv_data_dict[param_key.value] = str(settings.get(param_key))
+    for key in additional_data_dict.keys():
+        csv_data_dict[key] = str(additional_data_dict.get(key))
+        
     dir_name: str = f"{dir_name_prefix}_{generate_dir_name(settings).replace('.', '-')}"
     storage_path: str = f"{c.RESULTS_DIR}/{env_name}/{method_name}/{dir_name}"
     
@@ -308,15 +312,11 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, st
             os.mkdir(path)
     
     # Create the paths.
-    filenname_qtable: str               = f"{storage_path}/{c.fn_qtable_npy}"
-    filenname_states_dict: str          = f"{storage_path}/{c.fn_states_dict_npy}"
-    filenname_coverage_table: str       = f"{storage_path}/{c.fn_ctable_npy}"
-    filenname_general: str              = f"{storage_path}/{c.fn_general_txt}"
-    filenname_perf: str                 = f"{storage_path}/{c.fn_performances_table}{seed}.csv"
-    filenname_perf_plot: str            = f"{storage_path}/{c.fn_plot1_performance_jpeg}"
-    filenname_results_plot: str         = f"{storage_path}/{c.fn_plot2_results_jpeg}"
-    filenname_smooth_results_plot: str  = f"{storage_path}/{c.fn_plot3_results_smooth_jpeg}"
-    filenname_tde_plot: str             = f"{storage_path}/{c.fn_plot4_tde_jpeg}"
+    filenname_qtable: str           = f"{storage_path}/{c.fn_qtable_npy}"
+    filenname_states_dict: str      = f"{storage_path}/{c.fn_states_dict_npy}"
+    filenname_coverage_table: str   = f"{storage_path}/{c.fn_ctable_npy}"
+    filenname_general: str          = f"{storage_path}/{c.fn_general_csv}"
+    filenname_perf: str             = f"{storage_path}/{c.fn_performances_csv}"
     
     # Save the q-table to file.
     np.save(filenname_qtable, q_table)    
@@ -326,66 +326,22 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, st
     if coverage_table is not None: 
         np.save(filenname_coverage_table, coverage_table)
     # Save general information, including the runtime to file.    
-    general_df = pd.DataFrame({'Method': [method_name],
-                               'Runtime': [timedelta(seconds=complete_runtime)]})
+    general_df = pd.DataFrame(csv_data_dict, index=[0])
     general_df.to_csv(filenname_general, index=None)
     
     # Save the perfomances to file.
-    d = {'reward': episodic_returns, 'performance': episodic_performances, 'tde': tdes, 'episode': evaluated_episodes}
-    results_df = pd.DataFrame(d)
+    results_df = pd.DataFrame({
+        c.results_col_rewards:       episodic_returns,
+        c.results_col_performances:  episodic_performances,
+        c.results_col_tdes:          tdes, 
+        c.results_col_episodes:      evaluated_episodes
+    })
     # Smooth the data, to plot more smooth curves (much less fluctuation).
-    results_df_with_smooth = add_smoothed_data(results_df)    
+    results_df_with_smooth = add_smoothed_data(results_df, window=min(results_df.shape[0]//10, 100))
     results_df_with_smooth.to_csv(filenname_perf)
-
-    # Prepare a subtitle containing the parameter settings.
-    lr_str    = f"Learning rate: {learning_rate}"
-    sss_str   = f"State set space strategy '{strategy}'"
-    bl_str    = f"Baseline: '{baseline}'"
-    dic_str   = f"Discount factor: {q_discount}"
-    beta_str  = f"Beta: {beta}"
-    lperf_str = f"Last performance: {episodic_performances[-1]}"
-    lref_str  = f"Last reward: {episodic_returns[-1]}"
-    sub_title: str = f"<br><sup>"
-    sub_title += f"{lr_str}"
-    sub_title += f", {sss_str}"
-    sub_title +=f', {bl_str}' if baseline is not None else ''
-    sub_title += f", {dic_str}"
-    sub_title +=f', {beta_str}' if beta is not None else ''
-    sub_title += "<br>"
-    sub_title += f"{lperf_str}, {lref_str}"
-    sub_title += f"</sup>"
-    
-    # Plot the raw performance data and store it to image.
-    title: str = f"Performances - '{env_name}'\n{sub_title}"
-    fig = px.line(results_df, x='episode', y=['reward', 'performance'], title=title)
-    fig.write_image(filenname_perf_plot)
-
-    # Plot the raw squared temporal difference error and store it to image.
-    title: str = f"Squared Temporal Difference Error - '{env_name}'\n{sub_title}"
-    fig = px.line(results_df, x='episode', y=['tde'], title=title)
-    fig.write_image(filenname_tde_plot)
-    
-    # Standardize the data and plot it.
-    cols_to_standardize = ['reward', 'performance', 'tde', 'reward_smooth', 'performance_smooth', 'tde_smooth']
-    results_df_with_smooth[cols_to_standardize] = results_df_with_smooth[cols_to_standardize].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
-
-    # Plot the standardized performance data and store it to image.
-    title: str = f"Standardized results - '{env_name}'\n{sub_title}"
-    fig = px.line(results_df_with_smooth, x='episode', y=['reward', 'performance', 'tde'], title=title)
-    fig.write_image(filenname_results_plot)
-
-    # Plot the standardized smoothed performance data and store it to image.
-    title: str = f"Smoothed results - '{env_name}'\n{sub_title}"
-    fig = px.line(results_df_with_smooth, x='episode_smooth', y=['reward_smooth', 'performance_smooth', 'tde_smooth'], title=title)
-    fig.write_image(filenname_smooth_results_plot)
 
     # Save the settings and last results to a global csv file.
     add_run_to_all_results_csv(settings, episodic_returns, episodic_performances, storage_path)
-
-    if render_gif:
-        journey_states = run_agent_on_env(results_path=storage_path, env_name=env_name, q_table=q_table, states_dict=states_dict, live_prints=False, print_q_table=False)
-        text = f"{lr_str}\n{sss_str}\n{bl_str}\n{dic_str}\n{beta_str}\n{lperf_str}\n{lref_str}"
-        v.render_agent_journey_gif(directory=storage_path, env_name=env_name, states=journey_states, info_text=text)
         
     print("complete.\n\n")
     return filenname_qtable, filenname_perf
@@ -397,8 +353,8 @@ if __name__ == "__main__":
     # path1 = '/home/fabrice/Documents/coding/ML/Results/sokocoin2/QLearning/2023_07_24-17_33_e100_bNone_SEx'
         
     # v.render_state_list_to_pngs(load_states_id_dict("/home/fabrice/Downloads/states_id_dict.npy"), 'sokocoin0', "/home/fabrice/Downloads/figs/states_")
-    journey_states = run_agent_on_env(results_path="/home/fabrice/Downloads/", env_name="sokocoin2", live_prints=False, print_q_table=False)
-    v.render_agent_journey_gif(directory="/home/fabrice/Downloads/figs", env_name="sokocoin2", states=journey_states, info_text='')
+    # journey_states = run_agent_on_env(results_path="/home/fabrice/Downloads/", env_name="sokocoin2", live_prints=False, print_q_table=False)
+    # v.render_agent_journey_gif(dir_path="/home/fabrice/Downloads/figs", env_name="sokocoin2", states_list=journey_states, info_text='')
     # render_agent_journey_gif(directory=path0)
     
     pass
