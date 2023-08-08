@@ -4,15 +4,13 @@ import numpy as np
 import pandas as pd
 import os
 import math
-from csv import DictWriter, Sniffer
-from datetime import timedelta, datetime
+from csv import DictWriter
 import time
 
-
-import plotly.express as px
+# Repository imports.
 from helpers import factory
 
-# Local imports
+# Local imports.
 import constants as c
 import x2_evaluation as v
 
@@ -66,7 +64,6 @@ GAME_ART = [['######',  # Level 0.
 
 # 3.BOTH BOXES AT FREE - Box1 at reversible position:
 # 100 -18 Steps = 82 performance
-
 
 def my_comb(n, k) -> int:
     return int(math.factorial(n) / (math.factorial(k) * math.factorial(n-k)))
@@ -170,7 +167,7 @@ def run_agent_on_env(results_path: str, env_name: str, q_table: np.array = None,
         action = get_best_action(q_table, state_id, action_space)
         timestep = env.step(action)
         returns.append(env.episode_return)
-        performances.append(env._get_hidden_reward())# TODO env.get_last_performance())
+        performances.append(env._get_hidden_reward())
         step_ctr += 1
         state: str = str(timestep.observation['board'])
         # Check if the state is already known. Otherwise assign in a free 'state_id'.
@@ -347,14 +344,5 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, st
     return filenname_qtable, filenname_perf
 
 
-if __name__ == "__main__":    
-    # path0 = '/home/fabrice/Documents/coding/ML/Results/sokocoin0/RRLearning/2023_07_24-17_23_e100_b0-1_blStepwise_SEs'
-    path0 = '/home/fabrice/Documents/coding/ML/Results/sokocoin0/RRLearning/2023_07_25-16_26_e1000_lr0-1_SEst_blStep_g0-99_b0-05'
-    # path1 = '/home/fabrice/Documents/coding/ML/Results/sokocoin2/QLearning/2023_07_24-17_33_e100_bNone_SEx'
-        
-    # v.render_state_list_to_pngs(load_states_id_dict("/home/fabrice/Downloads/states_id_dict.npy"), 'sokocoin0', "/home/fabrice/Downloads/figs/states_")
-    # journey_states = run_agent_on_env(results_path="/home/fabrice/Downloads/", env_name="sokocoin2", live_prints=False, print_q_table=False)
-    # v.render_agent_journey_gif(dir_path="/home/fabrice/Downloads/figs", env_name="sokocoin2", states_list=journey_states, info_text='')
-    # render_agent_journey_gif(directory=path0)
-    
+if __name__ == "__main__":
     pass

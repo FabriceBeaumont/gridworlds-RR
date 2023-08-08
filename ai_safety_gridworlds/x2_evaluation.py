@@ -1,134 +1,78 @@
 from typing import List, Dict, Set, Tuple, Any
-import plotly.express as px
-
-import matplotlib.pyplot as plt
-from matplotlib.colors import LinearSegmentedColormap
-import numpy as np
 from scipy.sparse import save_npz, load_npz, csc_matrix, csr_matrix
-from io import BytesIO
+import numpy as np
+from math import ceil
 import pandas as pd
 import os
 
+import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
+import plotly.express as px
+import plotly.graph_objects as go
+from io import BytesIO
 import imageio
 
 import constants as c
 import helper_fcts as hf
 
-Q_PATH = '/home/fabrice/Documents/coding/ML/Results/sokocoin0/RRLearning/2023_07_23-17_44_e100_b0-1_blStarting/qtable.npy'
-#"/home/fabrice/Documents/coding/ML/Results/Environments.SOKOCOIN2/RRLearning/2023_07_20-22_40_e10000_b0-1_blStarting/qtable.npy"
-C_PATH = "/home/fabrice/Documents/coding/ML/Results/sokocoin0/RRLearning/2023_07_25-14_37_e10000_lr0-1_SEst_blStar_g1-0_b0-05"
-
-
-def visualize_matrix_px(save_path: str = None, path: str = None, table: np.array = None, show_in_explorer: bool = False):
-    if table is None:
-        table = np.load(path)
-
-    fig = px.imshow(table, title=save_path)
-    fig.write_image(save_path)
-    if show_in_explorer:
-        fig.show()
-
-def visualize_matrix_np(save_path: str = None, path: str = None, table: np.array = None):
-    if table is None:
-        table = np.load(path)
-
-    plt.figure(figsize=(14, 10))
-    plt.imshow(table, cmap='hot', interpolation='nearest')
-    plt.colorbar(label='Q-Value')
-    plt.title('Q-Table Visualization')
-    plt.xlabel('Actions')
-    plt.ylabel('States')
-
-    if save_path is not None:
-        plt.savefig(save_path)
-    else:
-        plt.show()
-
-def visualize_topNc_states(path: str = '', num_states: int = 100, c_table: np.array = None):
-    if c_table is None:
-        c_table = np.load(path, allow_pickle=True)
-
-    # Compute the average c-value for each state.
-    avg_c_row = c_table.mean(axis=1)    
-    num_states = min(c_table.shape[0], num_states)
-    # Get the indices of the states with the highest average c-values.
-    top_rows = np.argpartition(avg_c_row, -num_states)[-num_states:]
-
-    avg_c_col = c_table[top_rows, :].mean(axis=0)
-    # Get the indices of the states with the highest average c-values.
-    top_cols = np.argpartition(avg_c_col, -num_states)[-num_states:]
-    
-    # Extract the corresponding rows and columns.
-    top_q_table = c_table[np.ix_(top_rows, top_cols)]
-
-    visualize_matrix_px(table = top_q_table, save_path=path.replace('.npy', '.jpg'))
-
-def visualize_topNq_states(q_table_path: str = None, q_table: np.array = None, num_states: int = 100, save_path: str = None, show_in_explorer:bool = False):
+def visualize_qtable(env_name: str, q_table_path: str = None, q_table: np.array = None, save_path: str = None) -> None:
     if q_table is None:
         q_table = np.load(q_table_path, allow_pickle=True)
 
     if save_path is None:
-        save_path = ''
+        save_path = 'QTable.jpg'
         if q_table_path is not None:
             save_path = q_table_path.replace('.npy', '.jpg')
+
+    dim_wzeros = q_table.shape[0]
+    # Only consider non zero rows.
+    q_table = q_table[np.any(q_table, axis=1)]
+    dim_wozeros = q_table.shape[0]
     
-    # Compute the average Q-value for each state
-    avg_q_values = q_table.mean(axis=1)
-    num_states = min(q_table.shape[0], num_states)
-    # Get the indices of the states with the highest average Q-values
-    top_states = np.argpartition(avg_q_values, -num_states)[-num_states:]
-    # Extract the corresponding rows from the Q-table
-    top_q_table = q_table[top_states, :]
+    # Compute a suitable height for balanced plots.    
+    h = max(50, q_table.shape[0]//50)
+    # Fill up the matrix with dummy values to fit the new shape perfectly.
+    w = ceil(q_table.shape[0] / h)
+    # Add missing rows with a dummy value for more balanced plots.
+    if w > 1:
+        dummz_value = -10
+        dummy_rows = dummz_value * np.ones((w*h - q_table.shape[0], len(c.ACTIONS)))
+        q_table = np.vstack([q_table, dummy_rows])
+        
+    # Rearrange the possibly very long q-table, into a more square-shaped matrix.
+    q_table_split = np.vsplit(q_table, w)
+    q_table = np.concatenate(tuple(q_table_split), axis=1)
 
-    visualize_matrix_px(table = top_q_table, save_path=save_path, show_in_explorer=show_in_explorer)
+    # Construct the plot title.
+    env_name_str: str = f" '{env_name}'" if env_name is not None else ''
+    plot_title: str = f"Q-Table - Non-Zero State Evaluations - {env_name_str}"
+    sub_title: str = "<br>"
+    sub_title += "<sup>"
+    sub_title += f"Original dimension: {dim_wzeros}. Nr. of non zero rows (which are displayed here): {dim_wozeros} ({round(dim_wozeros/dim_wzeros *100,2)} %)."
+    sub_title += "<br>"
+    sub_title += f"Order of actions: {', '.join(list(c.ACTIONS.values()))}"
+    sub_title += "</sup>"   
 
-def get_percentage_of_zero(path: str = '', q_table: np.array = None) -> Tuple[float, float]:
-    """Returns the percentage of entries which are not zero, 
-    and the percentage of rows which do contain at least one non zero value.
-    """
-    if q_table is None:
-        q_table: np.array = np.load(path, allow_pickle=True)
+    layout = go.Layout(
+        title_text=plot_title + sub_title, 
+        legend_title_text='Heatbar',
+        title = '',
+        yaxis = go.layout.YAxis(
+            showticklabels=False,
+            title = 'State Rows'
+        )
+    )
+    
+    fig = px.imshow(q_table, color_continuous_scale='RdBu_r', origin='lower')        
+    fig.update_layout(layout)
+    fig.write_image(save_path)
 
-    n = q_table.size
-    nzero_percent = np.count_nonzero(q_table) / n * 100
-    not_null_rows = q_table[np.any(q_table, axis=1)]
-    nzero_rows_percent = len(not_null_rows) / n * 100
-    return nzero_percent, nzero_rows_percent
-
-# TODO: Delete or refactor
-def visualize_action_values():
-    q_tables_dir: str   = "QTables"
-    env_name: str       = "TestEnv"
-    selection_frequency: int    = 10
-
-    # TODO: Read in the nr episodes from the file name
-    qtable_files = [f for f in os.listdir(q_tables_dir) if os.path.isfile(os.path.join(q_tables_dir, f))]
-    qtable_selected_files = qtable_files[0::len(qtable_files)//selection_frequency]
-
-    for id0, file_name0 in enumerate(qtable_selected_files[:-1]):
-        episode0 = id0 * selection_frequency
-        episode1 = (id0 + 1) * selection_frequency
-        file_name1 = qtable_selected_files[id0 + 1]
-        q_table0 = pd.DataFrame(np.load(f"{q_tables_dir}/{file_name0}"))
-        q_table1 = pd.DataFrame(np.load(f"{q_tables_dir}/{file_name1}"))
-
-        diff_df = q_table0 - q_table1
-        # Add an index column to count/name the number of states.
-        diff_df = diff_df.reset_index()
-        # Rename the columns based on the Actions Dict: 0: "Up", 1: "Down", 2: "Left", 3: "Right", 4: "NOOP".
-        actions: List[str] = ["Up", "Down", "Left", "Right", "NOOP"]
-        state_ids: str = "State ids"
-        diff_df.columns.values[0] = state_ids
-        diff_df.columns.values[1] = actions[0]
-        diff_df.columns.values[2] = actions[1]
-        diff_df.columns.values[3] = actions[2]
-        diff_df.columns.values[4] = actions[3]
-        diff_df.columns.values[5] = actions[4]
-        # Plot the performance data and store it to image.
-        plot_filename = f"qtable_diff_{episode0}_{episode1}.jpeg"
-
-        fig = px.bar(diff_df, x=state_ids, y=actions, title=f"Action-Value differences - e{episode0}-e{episode1} - {env_name}")
-        fig.write_image(f"{q_tables_dir}/{plot_filename}")
+def save_images_as_gif(frames: List, save_path: str, duration: int = 800, loop: int = 5) -> None:
+    imageio.mimsave(f"{save_path}.gif", 
+        frames, 
+        duration = duration, 
+        loop = loop
+    )
 
 def plot_states_to_image(states: List[np.array], returns: List[float] = None, performances: List[float] = None, env_name: str = None, save_images_to_dir: bool = False, file_path_prefix: str = 'Image', info_text: str = '') -> List:
     frames = []        
@@ -141,8 +85,8 @@ def plot_states_to_image(states: List[np.array], returns: List[float] = None, pe
     # Iterate over all states-matrices and convert them to image.
     for nr, state in enumerate(states):
         fig, (ax_state, ax_info) = plt.subplots(1, 2, figsize=(5, 3))
-        agent_name: str = f" '{env_name}'" if env_name is not None else ''
-        plot_title: str = f"RR-Learning Agent{agent_name}"
+        env_name_str: str = f" '{env_name}'" if env_name is not None else ''
+        plot_title: str = f"RR-Learning Agent{env_name_str}"
         fig.suptitle(plot_title)
         ax_state.matshow(state, cmap=cmap1, vmin=v_min, vmax=v_max)
         
@@ -168,7 +112,6 @@ def plot_states_to_image(states: List[np.array], returns: List[float] = None, pe
         # Terminate the plot creation. Set layout to tight.
         plt.tight_layout()
         # Save the image.
-        #frames.append(imageio.v2.imread(file_path)) # plt.figure
         buffer = BytesIO()
         plt.savefig(buffer, format='png')
         buffer.seek(0)
@@ -180,13 +123,6 @@ def plot_states_to_image(states: List[np.array], returns: List[float] = None, pe
         plt.close()
 
     return frames
-
-def save_images_as_gif(frames: List, save_path: str, duration: int = 600, loop: int = 3) -> None:
-    imageio.mimsave(f"{save_path}.gif", 
-        frames, 
-        duration = duration, 
-        loop = loop
-    )
 
 def parse_matrix_str_to_int(states: List[List[str]]) -> List[np.array]:
     state_matrices: List[np.array] = []
@@ -202,17 +138,9 @@ def parse_matrix_str_to_int(states: List[List[str]]) -> List[np.array]:
     return state_matrices
 
 def render_agent_journey_gif(data_path: str, save_path: str, env_name: str, q_table: np.array=None, states_dict: Dict[str, int]=None, states_list: List[str] = None, info_text: str = '', save_images_to_dir: bool = False) -> str:
-    """_summary_
-
-    Args:
-        directory (str): _description_
-        env_name (str, optional): _description_. Defaults to None.
-        states (List[str], optional): _description_. Defaults to None.
-        info_text (str, optional): _description_. Defaults to ''.
-
-    Returns:
-        str: _description_
-    """
+    """Load a q-table and execute an agent based on it. Render the visited states as a gif.
+    Also diplay a bunch of information side by side to the render.
+    """    
     # The real environment renderer uses 'saftey_ui' ('_display') and 'courses'. We can simplify this rendering process, since
     # no rendering in realtime, depending on user actions are required.
    
@@ -230,7 +158,7 @@ def render_agent_journey_gif(data_path: str, save_path: str, env_name: str, q_ta
     state_matrices: List[np.array] = parse_matrix_str_to_int(states_list)
     # Now plot all these states and save the plots in a dir.
     gif_frames: List = plot_states_to_image(states=state_matrices, returns=returns, performances=performances, env_name=env_name, save_images_to_dir=save_images_to_dir, file_path_prefix=file_path_prefix, info_text=info_text)
-    save_images_as_gif(gif_frames, f"{save_path}/{c.fn_agent_journey}")    
+    save_images_as_gif(gif_frames, f"{save_path}/{c.fn_agent_journey}", duration=1000)    
     
     return agent_journey_figs
 
@@ -269,7 +197,8 @@ def evaluate(data_path: str):
     filenname_results_plot: str         = f"{save_path}/{c.fn_plot2_results_jpeg}"
     filenname_smooth_results_plot: str  = f"{save_path}/{c.fn_plot3_results_smooth_jpeg}"
     filenname_tde_plot: str             = f"{save_path}/{c.fn_plot4_tde_jpeg}"
-    
+    filenname_qtable_plot: str          = f"{save_path}/{c.fn_plot5_qtable_heatmap}"
+
     # Prepare a subtitle containing the parameter settings.
     metho_str = f"{c.PARAMETRS.METHOD_NAME.value}: {method_name}"
     lr_str    = f"{c.PARAMETRS.LEARNING_RATE.value}: {learning_rate}"
@@ -279,8 +208,8 @@ def evaluate(data_path: str):
     beta_str  = f"{c.PARAMETRS.BETA.value}: {beta}"
     epis_str  = f"{c.PARAMETRS.NR_EPISODES.value}: {nr_episodes}"
     steps_str = f"{c.PARAMETRS.MAX_NR_STEPS.value}: {max_nr_steps}"
-    lperf_str = f"Last performance: {results_df[c.results_col_performances].iloc[-1]}"
-    lref_str  = f"Last reward: {results_df[c.results_col_rewards].iloc[-1]}"
+    lperf_str = f"Last episodes performance: {results_df[c.results_col_performances].iloc[-1]}"
+    lref_str  = f"Last episodes reward: {results_df[c.results_col_rewards].iloc[-1]}"
     sub_title: str = f"<br><sup>"
     sub_title += f"{metho_str}"
     sub_title += f", {lr_str}"
@@ -325,6 +254,9 @@ def evaluate(data_path: str):
     fig.update_layout(legend=legend_settings)
     fig.write_image(filenname_smooth_results_plot)
 
+    # Plot the q table.
+    visualize_qtable(env_name=env_name, q_table=q_table, save_path=filenname_qtable_plot)
+    
     print("\rCreating a gif ...", end="")
     # Render the learned q-table strategy to gif.
     text = f"{lr_str}\n{sss_str}\n{bl_str}\n{dic_str}\n{beta_str}\n{epis_str}\n{steps_str}\n\n{lperf_str}\n{lref_str}"
@@ -333,11 +265,7 @@ def evaluate(data_path: str):
     print("\rEvaluation complete.")
 
 if __name__ == "__main__":
-    C_PATH = "/home/fabrice/Documents/coding/ML/GridworldResults/sokocoin2/RRLearning/2023_07_30-16_01_e5000_lr0-2_SExp_blStar_g0-9_b0-2"
-    # visualize_topNc_states(path=f"{C_PATH}/{c.fn_ctable_npy}")        
-    # visualize_topNq_states(q_table_path=f"{C_PATH}/qtable_lr0-1_gamma1_beta0-1.npy")
-    # visualize_topNq_states(q_table_path=f"/home/fabrice/Downloads/qtable.npy")
+    # C_PATH = "/home/fabrice/Documents/coding/ML/GridworldResults/sokocoin2/RRLearning/2023_07_30-16_01_e5000_lr0-2_SExp_blStar_g0-9_b0-2"
+    C_PATH = "/home/fabrice/Documents/coding/ML/GridworldResults/sokocoin0/RRLearning/2023_08_08-03_21_e100_lr0-1_SEst_blStar_g0-99_b0-1"
     evaluate(C_PATH)
-    
-    # path = f"{c.RESULTS_DIR}/env_name/method_name/dir_time_tag/qtable.npy"
     pass

@@ -21,11 +21,12 @@ fn_experiments_csv: str = "AllExperiments.csv"
 
 fn_general_csv: str                 = "general.csv"
 fn_performances_csv: str            = "performances_table.csv"
+fn_agent_journey: str               = "agent_journey"
 fn_plot1_performance_jpeg: str      = "plot1_performance.jpeg"
 fn_plot2_results_jpeg: str          = "plot2_results.jpeg"
 fn_plot3_results_smooth_jpeg: str   = "plot3_results_smooth.jpeg"
 fn_plot4_tde_jpeg: str              = "plot4_tde.jpeg"
-fn_agent_journey: str               = "agent_journey"
+fn_plot5_qtable_heatmap: str        = "plot5_qtable_heatmap.jpg"
 
 results_col_rewards: str        = 'Rewards'
 results_col_performances: str   = 'Performances'

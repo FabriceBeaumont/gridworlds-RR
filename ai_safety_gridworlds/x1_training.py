@@ -12,7 +12,7 @@ import time
 import numpy as np
 import os 
 
-# Local imports
+# Local imports.
 import helper_fcts as hf
 import constants as c
 import x2_evaluation as v
@@ -248,7 +248,7 @@ def run_q_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, see
                     # Before ending this episode, save the returns and performances.
                     if not(episode % (nr_episodes//tde_frequency)):
                         episodic_returns[eval_episode_ctr]      = env.episode_return
-                        episodic_performances[eval_episode_ctr] = env.get_last_performance()
+                        episodic_performances[eval_episode_ctr] = env._get_hidden_reward() # env.get_last_performance()
                         tdes[eval_episode_ctr]                  = _episode_tde
                         evaluated_episodes[eval_episode_ctr]    = episode
                         eval_episode_ctr += 1
@@ -613,21 +613,5 @@ if __name__ == "__main__":
     demo()
     # beta_gridsearch()
     # experiment_right_box_movement_girdsearch()
-
-    # TODO extras: Implement usage of a sparse matrix.
-
-    # TODO: Check min max standardization.
-    # todo: Smoothed 'normalized' results.
-
-    # TODO: Improve q table plot.
-    # TODO: Add the heat map plots to the standard visualization tools. Improve the heatmap plots. Rectangular images.
-
-    # TODO: Separate a visualizations script - based on data stored in a dir. Clean up the data storage.
-    # TODO: Visualize several runs in comparison. Paramter: List of folders. Output: Combined plot of results, performances.
-    # TODO: Plot development of the qtable. Internet? Maybe inform about qupdates based on last and current state.
-    # TODO: In Agents journez plot the other actions ranked by evaluation.
+    # TODO extras: Implement usage of a sparse matrix.    
     # TODO: Separate the coverage implementation into a coverage class. Can AUP, and several ideas for RR be implemented aat the same time?
-
-    # TODO: GIF print Reward, Performance during animation.
-    
-    # TODO: Log runtimes and add them to the csv print. (extractable vom bar()??)

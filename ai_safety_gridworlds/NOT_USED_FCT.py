@@ -1,15 +1,7 @@
 from typing import List, Dict, Set, Tuple
 import helper_fcts as hf
 import re
-import imageio
-import os
 import numpy as np
-from matplotlib import pyplot as plt
-import matplotlib as mpl
-import matplotlib.image
-from matplotlib.colors import ListedColormap, LinearSegmentedColormap
-
-import constants as c
 
 OLD_KEY_CHAR_GROUPS = [   
     ['A'],
@@ -74,6 +66,23 @@ def keypos_to_state(key_char_str: str, env_id=2) -> Tuple[List[str], List[List[i
     state_str_mat: List[str] = [state_str[i:i + row_length] for i in range(0, max_index, row_length) ]
 
     return state_str_mat, key_char_pos
+
+def visualize_topNc_states(path: str = '', num_states: int = 100, c_table: np.array = None):
+    if c_table is None:
+        c_table = np.load(path, allow_pickle=True)
+
+    # Compute the average c-value for each state.
+    avg_c_row = c_table.mean(axis=1)    
+    num_states = min(c_table.shape[0], num_states)
+    # Get the indices of the states with the highest average c-values.
+    top_rows = np.argpartition(avg_c_row, -num_states)[-num_states:]
+
+    avg_c_col = c_table[top_rows, :].mean(axis=0)
+    # Get the indices of the states with the highest average c-values.
+    top_cols = np.argpartition(avg_c_col, -num_states)[-num_states:]
+    
+    # Extract the corresponding rows and columns.
+    top_q_table = c_table[np.ix_(top_rows, top_cols)]
 
 def demo_keypos_fct():
     state: List[str] = ['##########',  # Level 3.
