@@ -266,6 +266,17 @@ def evaluate(data_path: str):
 
 if __name__ == "__main__":
     # C_PATH = "/home/fabrice/Documents/coding/ML/GridworldResults/sokocoin2/RRLearning/2023_07_30-16_01_e5000_lr0-2_SExp_blStar_g0-9_b0-2"
-    C_PATH = "/home/fabrice/Documents/coding/ML/GridworldResults/sokocoin0/RRLearning/2023_08_08-03_21_e100_lr0-1_SEst_blStar_g0-99_b0-1"
-    evaluate(C_PATH)
+    dir_path = "/home/fabrice/Documents/coding/ML/GridworldResults/"
+    path_endings = [
+        #"sokocoin0/RRLearning/2023_08_07-00_39_e100_lr0-1_SEst_blStar_g0-99_b0-1",
+        #"sokocoin0/RRLearning/2023_08_08-03_21_e100_lr0-1_SEst_blStar_g0-99_b0-1",
+        #"sokocoin0/RRLearning/2023_08_19-02_00_e5000_lr0-2_SExp_blStar_g0-99_b0-1",
+        #"sokocoin0/RRLearning/2023_08_19-02_03_e5000_lr0-2_SExp_blStep_g0-99_b0-1",
+        #"sokocoin2/RRLearning/2023_08_18-18_24_e5000_lr0-2_SExp_blStar_g0-99_b0-05",
+        #"sokocoin2/RRLearning/2023_08_18-18_35_e5000_lr0-2_SExp_blStar_g0-99_b0-1",
+        "sokocoin2/RRLearning/2023_08_19-00_24_e5000_lr0-2_SExp_blStar_g0-99_b0-1",
+        "sokocoin2/RRLearning/2023_08_19-00_35_e5000_lr0-2_SExp_blStep_g0-99_b0-1"
+    ]
+    for p in path_endings:
+        evaluate(dir_path + p)
     pass

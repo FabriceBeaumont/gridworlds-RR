@@ -152,7 +152,7 @@ class StateSpaceBuilder():
             return states_int_dict, int_states_dict, states_actions_dict
 
 # Q-Learning implementation.
-def run_q_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, seed: int = 42, verbose: bool = False):
+def run_q_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, seed: int = 42, verbose: bool = False) -> str:
 
     # Extract the parameter settings.
     env_name        = settings.get(PARAMETRS.ENV_NAME)
@@ -269,12 +269,12 @@ def run_q_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, see
     # Measure the runtime.
     additional_data_dict: Dict[str, str] = {'Total Tuntime': str(timedelta(seconds=time.time() - start_time))}
         
-    hf.save_results_to_file(settings=settings, q_table=q_table, states_dict=states_set.get_states_dict(), tdes=tdes, episodic_returns=episodic_returns, episodic_performances=episodic_performances, evaluated_episodes=evaluated_episodes, additional_data_dict=additional_data_dict, dir_name_prefix=time_tag)
+    output_dir = hf.save_results_to_file(settings=settings, q_table=q_table, states_dict=states_set.get_states_dict(), tdes=tdes, episodic_returns=episodic_returns, episodic_performances=episodic_performances, evaluated_episodes=evaluated_episodes, additional_data_dict=additional_data_dict, dir_name_prefix=time_tag)
 
-    return episodic_returns, episodic_performances
+    return output_dir
 
 # RR-Learning implementation.
-def run_rr_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, seed: int = 42, verbose: bool = False, save_coverage_table: bool = True):
+def run_rr_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, seed: int = 42, verbose: bool = False, save_coverage_table: bool = True) -> str:
     
     def get_the_baseline_state_id(_previous_baseline_id: int, _actions_so_far: List[int] = None) -> int:        
         # For the starting state baseline, nothing has to be computed. It is already set.
@@ -508,9 +508,9 @@ def run_rr_learning(settings: Dict[PARAMETRS, str], set_tde_freq: int = None, se
     if not save_coverage_table:
         c_table = None
     
-    hf.save_results_to_file(settings=settings, q_table=q_table, states_dict=states_set.get_states_dict(), tdes=tdes, episodic_returns=episodic_returns, episodic_performances=episodic_performances, evaluated_episodes=evaluated_episodes, additional_data_dict=additional_data_dict, coverage_table=c_table, dir_name_prefix=time_tag)
+    output_dir = hf.save_results_to_file(settings=settings, q_table=q_table, states_dict=states_set.get_states_dict(), tdes=tdes, episodic_returns=episodic_returns, episodic_performances=episodic_performances, evaluated_episodes=evaluated_episodes, additional_data_dict=additional_data_dict, coverage_table=c_table, dir_name_prefix=time_tag)
 
-    return episodic_returns, episodic_performances
+    return output_dir
 
 def create_settings_dict(env_name: str, nr_episodes: int, learning_rate: float = None, statespace_strategy: str = None, q_discount: float = None, baseline: str = None, beta: float = None) -> Dict[PARAMETRS, str]:
     """Store the parameter settings in a dictionary for simplified forwarding of the parameters.
@@ -540,10 +540,11 @@ def create_settings_dict(env_name: str, nr_episodes: int, learning_rate: float =
     return settings
 
 # EXPERIMENTS
-def run_experiments_q_and_rr(env_names: List[Baselines], nr_episodes: List[int], learning_rates: List[float], discount_factors: List[float], betas: List[float], baselines: List[Baselines], strategies: List[Strategies], save_coverage_table: bool = True):
+def run_experiments_q_and_rr(env_names: List[Baselines], nr_episodes: List[int], learning_rates: List[float], discount_factors: List[float], betas: List[float], baselines: List[Baselines], strategies: List[Strategies], save_coverage_table: bool = True) -> List[str]:
     print()
     nr_experiments: int = len(nr_episodes) * len(env_names) * len(strategies) * len(learning_rates) * len(discount_factors) * (len(betas) * len(baselines) + 1)
     ctr: int = 1
+    output_dir_list: List[str] = []
 
     for e in nr_episodes:
         for env_name in env_names:
@@ -555,7 +556,8 @@ def run_experiments_q_and_rr(env_names: List[Baselines], nr_episodes: List[int],
                         # Run the Q-learning experiments.
                         print(f"Experiment {ctr}/{nr_experiments} - QLearning: {n}, e{e}, lr{lr}, discount{d}, StateSetSizeStrategy:{s}")
                         settings = create_settings_dict(env_name=n, nr_episodes=e, learning_rate=lr, statespace_strategy=s, q_discount=d)
-                        run_q_learning(settings)
+                        output_dir = run_q_learning(settings)
+                        output_dir_list += [output_dir]
                         ctr += 1
 
                         # Run the RR-learning experiments.
@@ -563,10 +565,13 @@ def run_experiments_q_and_rr(env_names: List[Baselines], nr_episodes: List[int],
                             for bl in baselines:
                                 print(f"Experiment {ctr}/{nr_experiments} - RRLearning: {n}, e{e}, lr{lr}, discount{d}, StateSetSizeStrategy:{s}")
                                 settings = create_settings_dict(env_name=n, nr_episodes=e, learning_rate=lr, statespace_strategy=s, q_discount=d, baseline=bl.value, beta=beta)
-                                run_rr_learning(settings, save_coverage_table=save_coverage_table)
+                                output_dir = run_rr_learning(settings, save_coverage_table=save_coverage_table)
+                                output_dir_list += [output_dir]
                                 ctr += 1
+    
+    return output_dir_list
 
-def demo():
+def demo() -> List[str]:
     env_names: Environments         = [Environments.SOKOCOIN0]#, Environments.SOKOCOIN2]
     nr_episodes: List[int]          = [100]
     learning_rates: List[float]     = [.1]
@@ -575,11 +580,12 @@ def demo():
     baselines: np.array[Baselines]  = np.array([Baselines.STARTING_STATE_BASELINE])#, Baselines.STEPWISE_INACTION_BASELINE])
     
     # Perform the learning using an estimation of the state space size.
-    run_experiments_q_and_rr(env_names, nr_episodes, learning_rates, discount_factors, betas, baselines, strategies=[Strategies.ESTIMATE_STATES], save_coverage_table=True)
+    return run_experiments_q_and_rr(env_names, nr_episodes, learning_rates, discount_factors, betas, baselines, strategies=[Strategies.ESTIMATE_STATES], save_coverage_table=True)
     # Perform the learning using an preprocessed exploration of the state space size.
     # run_experiments_q_and_rr(env_names, nr_episodes, learning_rates, discount_factors, betas, baselines, strategies=[Strategies.EXPLORE_STATES], save_coverage_table=True)
 
-def experiment_right_box_movement_girdsearch():    
+def experiment_right_box_movement_girdsearch() -> List[str]:
+    output_dir_list: List[str] = []
     for lr in [0.5]:
         for discount in [0.99]:
             for beta in [0.05]:
@@ -592,26 +598,37 @@ def experiment_right_box_movement_girdsearch():
                     baseline=Baselines.STARTING_STATE_BASELINE.value, 
                     beta=beta
                 )
-                run_rr_learning(settings, verbose=False, save_coverage_table=True)
+                output_dir = run_rr_learning(settings, verbose=False, save_coverage_table=True)
+                output_dir_list += [output_dir]
+    
+    return output_dir_list
 
-def beta_gridsearch():    
-    for bl in [Baselines.STARTING_STATE_BASELINE.value, Baselines.STEPWISE_INACTION_BASELINE.value]:
-        for beta in [0.05, 0.1, 0.5, 3, 5]:
-            settings = create_settings_dict(
-                env_name=Environments.SOKOCOIN2.value, # Environments.SOKOCOIN0.value,
-                nr_episodes=5000,
-                learning_rate=0.2,
-                statespace_strategy=Strategies.EXPLORE_STATES.value,
-                q_discount=0.99,
-                baseline=bl,
-                beta=beta
-            )
-            run_rr_learning(settings, save_coverage_table=True)
+def beta_gridsearch() -> List[str]:
+    output_dir_list: List[str] = []
+    for env_name in [Environments.SOKOCOIN0.value, Environments.SOKOCOIN2.value]:
+        for bl in [Baselines.STARTING_STATE_BASELINE.value, Baselines.STEPWISE_INACTION_BASELINE.value]:
+            for beta in [0.1]: #, 0.5, 3, 5]:
+                settings = create_settings_dict(
+                    env_name=env_name,
+                    nr_episodes=5000,
+                    learning_rate=0.2,
+                    statespace_strategy=Strategies.EXPLORE_STATES.value,
+                    q_discount=0.99,
+                    baseline=bl,
+                    beta=beta
+                )
+                output_dir = run_rr_learning(settings, save_coverage_table=True)
+                output_dir_list += [output_dir]
+
+    return output_dir_list
 
 if __name__ == "__main__":
     pass
-    demo()
-    # beta_gridsearch()
+    # demo()
+    output_dir_list = beta_gridsearch()
     # experiment_right_box_movement_girdsearch()
     # TODO extras: Implement usage of a sparse matrix.    
     # TODO: Separate the coverage implementation into a coverage class. Can AUP, and several ideas for RR be implemented aat the same time?
+
+    for i in output_dir_list:
+        print(i)

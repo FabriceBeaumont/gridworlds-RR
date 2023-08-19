@@ -43,9 +43,11 @@ class Baselines(Enum):
     STEPWISE_INACTION_BASELINE: str = "Stepwise"
 
 class Environments(Enum):
-    SOKOCOIN0: str = "sokocoin0"
-    SOKOCOIN2: str = "sokocoin2"
-    SOKOCOIN3: str = "sokocoin3"
+    SOKOCOIN0: str = "Sokocoin 0"
+    SOKOCOIN1: str = "Sokocoin 1"
+    SOKOCOIN2: str = "Sokocoin 2"
+    SOKOCOIN3: str = "Sokocoin 3"
+    CONVEYOR0: str = "Conveyor Belt 0"
 
 class PARAMETRS(Enum):
     METHOD_NAME: str            = "Method Name"
@@ -67,6 +69,7 @@ StateSpaceSizeEstimations: Dict[str, int] = {
 
 TrueStateSpaceSizes: Dict[str, int] = {
     Environments.SOKOCOIN0.value: 60,
+    Environments.SOKOCOIN1.value: 21870808,
     Environments.SOKOCOIN2.value: 29830,
     Environments.SOKOCOIN3.value: 237350, # AT LEAST!
 }

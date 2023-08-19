@@ -21,7 +21,17 @@ GAME_ART = [['######',  # Level 0.
             '# X  #',
             '##   #',
             '### G#',
-            '######'],
+            '######'],            
+            ['##########',  # Level 1.
+            '#    #   #',
+            '#  1 A   #',
+            '# C#  C  #',
+            '#### ###2#',
+            '# C# #C  #',
+            '#  # #   #',
+            '# 3  # C #',
+            '#    #   #',
+            '##########'],
             ['#########',  # Level 2.
             '#       #',
             '#  1A   #',
@@ -103,12 +113,19 @@ def print_sokocoin_state_space_size_estimations(env_state: List[str], verbose: b
         # Compte the esimtate.
         nr_states += nr_box_placements * nr_agent_placements * nr_of_coin_orders
 
+    print(nr_states)
     return nr_states
 
 def load_sokocoin_env(env_name) -> Tuple:
     # Get environment.
-    env_name_lvl_dict = {c.Environments.SOKOCOIN0.value: 0, c.Environments.SOKOCOIN2.value: 2, c.Environments.SOKOCOIN3.value: 3}
-    env = factory.get_environment_obj('side_effects_sokoban', noops=True, level=env_name_lvl_dict[env_name])
+    env_name_key_mapping = {c.Environments.SOKOCOIN0.value: ('side_effects_sokoban', 0),
+                         c.Environments.SOKOCOIN2.value: ('side_effects_sokoban', 2),
+                         c.Environments.SOKOCOIN3.value: ('side_effects_sokoban', 3)          
+    }
+    env_key, lvl = env_name_key_mapping[env_name]
+    
+    # Return the environment, using original code.
+    env = factory.get_environment_obj(env_key, noops=True, level=lvl)
 
     # Construct the action space.
     action_space: List[int] = list(range(env.action_spec().minimum, env.action_spec().maximum + 1))
@@ -341,7 +358,7 @@ def save_results_to_file(settings: Dict[c.PARAMETRS, str], q_table: np.array, st
     add_run_to_all_results_csv(settings, episodic_returns, episodic_performances, storage_path)
         
     print("complete.\n\n")
-    return filenname_qtable, filenname_perf
+    return storage_path
 
 
 if __name__ == "__main__":
